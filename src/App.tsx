@@ -7,9 +7,12 @@ import { bresenhamLine, floodFill } from './utils';
 import { Menu } from './components/Menu';
 
 function App() {
+  const [canvasSize, setCanvasSize] = useState(CANVAS_SIZE);
   const [pixels, setPixels] = useState<string[][]>(() =>
     Array(CANVAS_SIZE).fill(null).map(() => Array(CANVAS_SIZE).fill(TRANSPARENT))
   );
+  const [history, setHistory] = useState<string[][][]>([]);
+  const [historyIndex, setHistoryIndex] = useState(-1);
   const [currentColor, setCurrentColor] = useState('#000000');
   const [colorPalette, setColorPalette] = useState<string[]>(['#000000', '#ffffff', '#ff0000', '#00ff00', '#0000ff']);
   const [isDrawing, setIsDrawing] = useState(false);
@@ -26,15 +29,16 @@ function App() {
   const isPanning = useRef(false);
   const lastPos = useRef({ x: 0, y: 0 });
   const lastDrawPos = useRef<{x: number, y: number} | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Center canvas on mount
+  // Center canvas on mount and when canvas size changes
   useEffect(() => {
-    const centerX = (window.innerWidth - CANVAS_SIZE * PIXEL_SIZE) / 2;
-    const centerY = (window.innerHeight - CANVAS_SIZE * PIXEL_SIZE) / 2;
+    const centerX = (window.innerWidth - canvasSize * PIXEL_SIZE) / 2;
+    const centerY = (window.innerHeight - canvasSize * PIXEL_SIZE) / 2;
     setPosition({ x: centerX, y: centerY });
-  }, []);
+  }, [canvasSize]);
 
-  const getPixelCoordinates = (e: Konva.KonvaEventObject<MouseEvent | TouchEvent | PointerEvent>) => {
+  const getPixelCoordinates = (e: Konva.KonvaEventObject<MouseEvent | TouchEvent | PointerEvent>, clamp: boolean = true) => {
     const stage = e.target.getStage();
     if (!stage) return null;
 
@@ -44,13 +48,24 @@ function App() {
     const x = Math.floor((pos.x - position.x) / (PIXEL_SIZE * scale));
     const y = Math.floor((pos.y - position.y) / (PIXEL_SIZE * scale));
 
-    if (x >= 0 && x < CANVAS_SIZE && y >= 0 && y < CANVAS_SIZE) {
+    const width = pixels[0]?.length || canvasSize;
+    const height = pixels.length || canvasSize;
+
+    if (clamp) {
+      if (x >= 0 && x < width && y >= 0 && y < height) {
+        return { x, y };
+      }
+      return null;
+    } else {
+      // クランプせずに座標を返す（範囲外の可能性あり）
       return { x, y };
     }
-    return null;
   };
 
   const drawPixel = (x: number, y: number, newPixels: string[][], color: string) => {
+    const width = newPixels[0]?.length || 0;
+    const height = newPixels.length || 0;
+
     if (brushSize === 1) {
       newPixels[y][x] = color;
     } else {
@@ -59,7 +74,7 @@ function App() {
         for (let dx = -radius; dx <= radius; dx++) {
           const px = x + dx;
           const py = y + dy;
-          if (px >= 0 && px < CANVAS_SIZE && py >= 0 && py < CANVAS_SIZE) {
+          if (px >= 0 && px < width && py >= 0 && py < height) {
             if (dx * dx + dy * dy <= radius * radius + radius) {
               newPixels[py][px] = color;
             }
@@ -68,6 +83,14 @@ function App() {
       }
     }
   };
+
+  const saveToHistory = useCallback((newPixels: string[][]) => {
+    const newHistory = history.slice(0, historyIndex + 1);
+    newHistory.push(newPixels.map(row => [...row]));
+    setHistory(newHistory);
+    setHistoryIndex(newHistory.length - 1);
+    setPixels(newPixels);
+  }, [history, historyIndex]);
 
   const handleMouseDown = (e: Konva.KonvaEventObject<PointerEvent>) => {
     const stage = e.target.getStage();
@@ -95,7 +118,7 @@ function App() {
       if (currentTool === 'fill') {
         const targetColor = pixels[coords.y][coords.x];
         const newPixels = floodFill(pixels, coords.x, coords.y, targetColor, currentColor);
-        setPixels(newPixels);
+        saveToHistory(newPixels);
       } else if (currentTool === 'select') {
         setSelectionStart(coords);
         setSelectionEnd(coords);
@@ -142,10 +165,9 @@ function App() {
     }
 
     if (isDrawing) {
-      const coords = getPixelCoordinates(e);
+      // 画面外でも座標を取得（クランプしない）
+      const coords = getPixelCoordinates(e, false);
       if (!coords) {
-        // キャンバス外に出た場合、lastDrawPosをリセット
-        lastDrawPos.current = null;
         return;
       }
 
@@ -163,18 +185,27 @@ function App() {
           coords.y
         );
 
+        // キャンバス内の点のみ描画
+        const width = pixels[0]?.length || 0;
+        const height = pixels.length || 0;
         line.forEach(point => {
-          drawPixel(point.x, point.y, newPixels, color);
+          if (point.x >= 0 && point.x < width && point.y >= 0 && point.y < height) {
+            drawPixel(point.x, point.y, newPixels, color);
+          }
         });
 
         setPixels(newPixels);
         lastDrawPos.current = coords;
       } else {
-        // lastDrawPosがnullの場合（キャンバス外から戻ってきた）、現在位置から開始
-        const newPixels = pixels.map(row => [...row]);
-        const color = currentTool === 'eraser' ? TRANSPARENT : currentColor;
-        drawPixel(coords.x, coords.y, newPixels, color);
-        setPixels(newPixels);
+        // lastDrawPosがnullの場合、現在位置から開始（キャンバス内のみ）
+        const width = pixels[0]?.length || 0;
+        const height = pixels.length || 0;
+        if (coords.x >= 0 && coords.x < width && coords.y >= 0 && coords.y < height) {
+          const newPixels = pixels.map(row => [...row]);
+          const color = currentTool === 'eraser' ? TRANSPARENT : currentColor;
+          drawPixel(coords.x, coords.y, newPixels, color);
+          setPixels(newPixels);
+        }
         lastDrawPos.current = coords;
       }
     }
@@ -185,6 +216,10 @@ function App() {
     if (stage) {
       const canvas = stage.content;
       canvas.releasePointerCapture(e.evt.pointerId);
+    }
+
+    if (isDrawing && currentTool !== 'select') {
+      saveToHistory(pixels);
     }
 
     setIsDrawing(false);
@@ -222,9 +257,11 @@ function App() {
   };
 
   const savePNG = () => {
+    const width = pixels[0]?.length || 0;
+    const height = pixels.length || 0;
     const canvas = document.createElement('canvas');
-    canvas.width = CANVAS_SIZE;
-    canvas.height = CANVAS_SIZE;
+    canvas.width = width;
+    canvas.height = height;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
 
@@ -252,6 +289,9 @@ function App() {
   const copySelection = useCallback(() => {
     if (!selectionStart || !selectionEnd) return;
 
+    const width = pixels[0]?.length || 0;
+    const height = pixels.length || 0;
+
     const minX = Math.min(selectionStart.x, selectionEnd.x);
     const maxX = Math.max(selectionStart.x, selectionEnd.x);
     const minY = Math.min(selectionStart.y, selectionEnd.y);
@@ -261,7 +301,9 @@ function App() {
     for (let y = minY; y <= maxY; y++) {
       const row: string[] = [];
       for (let x = minX; x <= maxX; x++) {
-        row.push(pixels[y][x]);
+        if (x < width && y < height) {
+          row.push(pixels[y][x]);
+        }
       }
       selection.push(row);
     }
@@ -272,19 +314,22 @@ function App() {
   const pasteSelection = useCallback(() => {
     if (!clipboard || !selectionStart) return;
 
+    const width = pixels[0]?.length || 0;
+    const height = pixels.length || 0;
+
     const newPixels = pixels.map(row => [...row]);
     clipboard.forEach((row, dy) => {
       row.forEach((color, dx) => {
         const x = selectionStart.x + dx;
         const y = selectionStart.y + dy;
-        if (x >= 0 && x < CANVAS_SIZE && y >= 0 && y < CANVAS_SIZE) {
+        if (x >= 0 && x < width && y >= 0 && y < height) {
           newPixels[y][x] = color;
         }
       });
     });
 
-    setPixels(newPixels);
-  }, [clipboard, selectionStart, pixels]);
+    saveToHistory(newPixels);
+  }, [clipboard, selectionStart, pixels, saveToHistory]);
 
   const addColorToPalette = () => {
     if (!colorPalette.includes(currentColor)) {
@@ -295,6 +340,71 @@ function App() {
   const removeColorFromPalette = (color: string) => {
     setColorPalette(colorPalette.filter(c => c !== color));
   };
+
+  const undo = useCallback(() => {
+    if (historyIndex > 0) {
+      setHistoryIndex(historyIndex - 1);
+      setPixels(history[historyIndex - 1].map(row => [...row]));
+    }
+  }, [history, historyIndex]);
+
+  const redo = useCallback(() => {
+    if (historyIndex < history.length - 1) {
+      setHistoryIndex(historyIndex + 1);
+      setPixels(history[historyIndex + 1].map(row => [...row]));
+    }
+  }, [history, historyIndex]);
+
+  const loadPNG = useCallback(() => {
+    fileInputRef.current?.click();
+  }, []);
+
+  const handleFileLoad = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      const img = new Image();
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) return;
+
+        // Draw image at original size
+        ctx.drawImage(img, 0, 0);
+
+        const imageData = ctx.getImageData(0, 0, img.width, img.height);
+        const newPixels = Array(img.height).fill(null).map(() => Array(img.width).fill(TRANSPARENT));
+
+        for (let y = 0; y < img.height; y++) {
+          for (let x = 0; x < img.width; x++) {
+            const i = (y * img.width + x) * 4;
+            const r = imageData.data[i];
+            const g = imageData.data[i + 1];
+            const b = imageData.data[i + 2];
+            const a = imageData.data[i + 3];
+
+            if (a > 0) {
+              const hex = '#' + [r, g, b].map(v => v.toString(16).padStart(2, '0')).join('');
+              newPixels[y][x] = hex;
+            }
+          }
+        }
+
+        // Update canvas size to match image
+        setCanvasSize(Math.max(img.width, img.height));
+        saveToHistory(newPixels);
+      };
+      img.src = event.target?.result as string;
+    };
+    reader.readAsDataURL(file);
+
+    // Reset input value so the same file can be loaded again
+    e.target.value = '';
+  }, [saveToHistory]);
 
   useEffect(() => {
     const handleGlobalContextMenu = (e: MouseEvent) => {
@@ -310,6 +420,14 @@ function App() {
         e.preventDefault();
         pasteSelection();
       }
+      if ((e.ctrlKey || e.metaKey) && e.key === 'z') {
+        e.preventDefault();
+        if (e.shiftKey) {
+          redo();
+        } else {
+          undo();
+        }
+      }
     };
 
     document.addEventListener('contextmenu', handleGlobalContextMenu);
@@ -318,7 +436,7 @@ function App() {
       document.removeEventListener('contextmenu', handleGlobalContextMenu);
       document.removeEventListener('keydown', handleKeyDown);
     };
-  }, [copySelection, pasteSelection]);
+  }, [copySelection, pasteSelection, undo, redo]);
 
   const getSelectionRect = () => {
     if (!selectionStart || !selectionEnd) return null;
@@ -343,6 +461,13 @@ function App() {
       backgroundColor: '#e8e8e8',
       position: 'relative'
     }}>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/png,image/jpeg,image/jpg"
+        style={{ display: 'none' }}
+        onChange={handleFileLoad}
+      />
       <Menu
         showMenu={showMenu}
         setShowMenu={setShowMenu}
@@ -363,6 +488,11 @@ function App() {
         selectionEnd={selectionEnd}
         clipboard={clipboard}
         savePNG={savePNG}
+        undo={undo}
+        redo={redo}
+        loadPNG={loadPNG}
+        canUndo={historyIndex > 0}
+        canRedo={historyIndex < history.length - 1}
       />
 
       {/* Zoom indicator */}

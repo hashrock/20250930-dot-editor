@@ -1,4 +1,3 @@
-import { CANVAS_SIZE } from './types';
 
 // Bresenham's line algorithm
 export function bresenhamLine(x0: number, y0: number, x1: number, y1: number): Array<{x: number, y: number}> {
@@ -33,8 +32,11 @@ export function bresenhamLine(x0: number, y0: number, x1: number, y1: number): A
 
 // Flood fill algorithm
 export function floodFill(pixels: string[][], x: number, y: number, targetColor: string, replacementColor: string): string[][] {
+  const width = pixels[0]?.length || 0;
+  const height = pixels.length || 0;
+
   if (targetColor === replacementColor) return pixels;
-  if (x < 0 || x >= CANVAS_SIZE || y < 0 || y >= CANVAS_SIZE) return pixels;
+  if (x < 0 || x >= width || y < 0 || y >= height) return pixels;
   if (pixels[y][x] !== targetColor) return pixels;
 
   const newPixels = pixels.map(row => [...row]);
@@ -42,7 +44,7 @@ export function floodFill(pixels: string[][], x: number, y: number, targetColor:
 
   while (stack.length > 0) {
     const {x: cx, y: cy} = stack.pop()!;
-    if (cx < 0 || cx >= CANVAS_SIZE || cy < 0 || cy >= CANVAS_SIZE) continue;
+    if (cx < 0 || cx >= width || cy < 0 || cy >= height) continue;
     if (newPixels[cy][cx] !== targetColor) continue;
 
     newPixels[cy][cx] = replacementColor;

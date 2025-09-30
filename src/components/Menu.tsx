@@ -1,4 +1,4 @@
-import { Paintbrush, Eraser, PaintBucket, Square, Menu as MenuIcon, Copy, ClipboardPaste, Save, Grid3x3, Plus } from 'lucide-react';
+import { Paintbrush, Eraser, PaintBucket, Square, Menu as MenuIcon, Copy, ClipboardPaste, Save, Grid3x3, Plus, Undo, Redo, Upload } from 'lucide-react';
 import type { Tool } from '../types';
 import {TRANSPARENT} from '../types';
 
@@ -22,6 +22,11 @@ interface MenuProps {
   selectionEnd: {x: number, y: number} | null;
   clipboard: string[][] | null;
   savePNG: () => void;
+  undo: () => void;
+  redo: () => void;
+  loadPNG: () => void;
+  canUndo: boolean;
+  canRedo: boolean;
 }
 
 const toolIcons = {
@@ -50,7 +55,12 @@ export function Menu({
   selectionStart,
   selectionEnd,
   clipboard,
-  savePNG
+  savePNG,
+  undo,
+  redo,
+  loadPNG,
+  canUndo,
+  canRedo
 }: MenuProps) {
   return (
     <div style={{
@@ -235,6 +245,58 @@ export function Menu({
             <span>Show Grid</span>
           </label>
 
+          {/* Undo/Redo */}
+          <div style={{ marginBottom: '10px' }}>
+            <div style={{ display: 'flex', gap: '3px', marginBottom: '3px' }}>
+              <button
+                onClick={undo}
+                disabled={!canUndo}
+                style={{
+                  flex: 1,
+                  padding: '6px 10px',
+                  backgroundColor: '#f8f8f8',
+                  color: '#555',
+                  border: '1px solid #e0e0e0',
+                  borderRadius: '4px',
+                  cursor: canUndo ? 'pointer' : 'not-allowed',
+                  fontSize: '11px',
+                  opacity: canUndo ? 1 : 0.4,
+                  fontWeight: '500',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px'
+                }}
+              >
+                <Undo size={14} />
+                <span>Undo</span>
+              </button>
+              <button
+                onClick={redo}
+                disabled={!canRedo}
+                style={{
+                  flex: 1,
+                  padding: '6px 10px',
+                  backgroundColor: '#f8f8f8',
+                  color: '#555',
+                  border: '1px solid #e0e0e0',
+                  borderRadius: '4px',
+                  cursor: canRedo ? 'pointer' : 'not-allowed',
+                  fontSize: '11px',
+                  opacity: canRedo ? 1 : 0.4,
+                  fontWeight: '500',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px'
+                }}
+              >
+                <Redo size={14} />
+                <span>Redo</span>
+              </button>
+            </div>
+          </div>
+
           {/* Copy/Paste */}
           <div style={{ marginBottom: '10px' }}>
             <button
@@ -286,28 +348,51 @@ export function Menu({
             </button>
           </div>
 
-          {/* Save */}
-          <button
-            onClick={savePNG}
-            style={{
-              width: '100%',
-              padding: '8px 12px',
-              backgroundColor: '#333',
-              color: 'white',
-              border: 'none',
-              borderRadius: '4px',
-              cursor: 'pointer',
-              fontSize: '12px',
-              fontWeight: '600',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '6px'
-            }}
-          >
-            <Save size={14} />
-            <span>Save PNG</span>
-          </button>
+          {/* Load/Save */}
+          <div style={{ display: 'flex', gap: '3px', marginBottom: '10px' }}>
+            <button
+              onClick={loadPNG}
+              style={{
+                flex: 1,
+                padding: '8px 12px',
+                backgroundColor: '#555',
+                color: 'white',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                fontSize: '12px',
+                fontWeight: '600',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '6px'
+              }}
+            >
+              <Upload size={14} />
+              <span>Load</span>
+            </button>
+            <button
+              onClick={savePNG}
+              style={{
+                flex: 1,
+                padding: '8px 12px',
+                backgroundColor: '#333',
+                color: 'white',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                fontSize: '12px',
+                fontWeight: '600',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '6px'
+              }}
+            >
+              <Save size={14} />
+              <span>Save</span>
+            </button>
+          </div>
 
           {/* Help */}
           <div style={{
