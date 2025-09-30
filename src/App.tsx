@@ -1,6 +1,7 @@
 import { useRef, useState, useEffect } from 'react';
 import { Stage, Layer, Rect, Line } from 'react-konva';
 import Konva from 'konva';
+import { Paintbrush, Eraser, PaintBucket, Square, Menu as MenuIcon, Copy, ClipboardPaste, Save, Grid3x3, Plus } from 'lucide-react';
 
 const CANVAS_SIZE = 32;
 const PIXEL_SIZE = 16;
@@ -373,10 +374,10 @@ function App() {
   };
 
   const toolIcons = {
-    brush: '🖌️',
-    eraser: '🧹',
-    fill: '🪣',
-    select: '⬚'
+    brush: <Paintbrush size={14} />,
+    eraser: <Eraser size={14} />,
+    fill: <PaintBucket size={14} />,
+    select: <Square size={14} />
   };
 
   return (
@@ -410,7 +411,7 @@ function App() {
             gap: '6px'
           }}
         >
-          <span style={{ fontSize: '16px' }}>☰</span>
+          <MenuIcon size={16} />
           <span>Menu</span>
         </button>
 
@@ -454,7 +455,7 @@ function App() {
                       transition: 'all 0.15s'
                     }}
                   >
-                    <span style={{ fontSize: '14px' }}>{toolIcons[tool]}</span>
+                    {toolIcons[tool]}
                     <span>{tool}</span>
                   </button>
                 ))}
@@ -525,7 +526,7 @@ function App() {
                   fontWeight: '500'
                 }}
               >
-                ➕ Add Color
+<Plus size={12} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '2px' }} /> Add Color
               </button>
             </div>
 
@@ -565,7 +566,7 @@ function App() {
                 onChange={(e) => setShowGrid(e.target.checked)}
                 style={{ cursor: 'pointer' }}
               />
-              <span style={{ fontSize: '14px' }}>⊞</span>
+              <Grid3x3 size={14} />
               <span>Show Grid</span>
             </label>
 
@@ -592,7 +593,7 @@ function App() {
                   gap: '6px'
                 }}
               >
-                <span>📋</span>
+                <Copy size={14} />
                 <span>Copy (⌘C)</span>
               </button>
               <button
@@ -615,7 +616,7 @@ function App() {
                   gap: '6px'
                 }}
               >
-                <span>📄</span>
+                <ClipboardPaste size={14} />
                 <span>Paste (⌘V)</span>
               </button>
             </div>
@@ -639,7 +640,7 @@ function App() {
                 gap: '6px'
               }}
             >
-              <span>💾</span>
+              <Save size={14} />
               <span>Save PNG</span>
             </button>
 
