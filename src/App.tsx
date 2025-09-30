@@ -93,7 +93,7 @@ function App() {
     setPosition({ x: centerX, y: centerY });
   }, []);
 
-  const getPixelCoordinates = (e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) => {
+  const getPixelCoordinates = (e: Konva.KonvaEventObject<MouseEvent | TouchEvent | PointerEvent>) => {
     const stage = e.target.getStage();
     if (!stage) return null;
 
@@ -128,11 +128,16 @@ function App() {
     }
   };
 
-  const handleMouseDown = (e: Konva.KonvaEventObject<MouseEvent>) => {
+  const handleMouseDown = (e: Konva.KonvaEventObject<PointerEvent>) => {
+    const stage = e.target.getStage();
+    if (stage) {
+      const canvas = stage.content;
+      canvas.setPointerCapture(e.evt.pointerId);
+    }
+
     if (e.evt.button === 1 || (e.evt.button === 2 && currentTool !== 'brush' && currentTool !== 'eraser')) {
       e.evt.preventDefault();
       isPanning.current = true;
-      const stage = e.target.getStage();
       if (stage) {
         const pos = stage.getPointerPosition();
         if (pos) {
@@ -177,7 +182,7 @@ function App() {
     }
   };
 
-  const handleMouseMove = (e: Konva.KonvaEventObject<MouseEvent>) => {
+  const handleMouseMove = (e: Konva.KonvaEventObject<PointerEvent>) => {
     if (isPanning.current) {
       const stage = e.target.getStage();
       if (stage) {
@@ -197,7 +202,11 @@ function App() {
 
     if (isDrawing) {
       const coords = getPixelCoordinates(e);
-      if (!coords) return;
+      if (!coords) {
+        // キャンバス外に出た場合、lastDrawPosをリセット
+        lastDrawPos.current = null;
+        return;
+      }
 
       if (currentTool === 'select') {
         setSelectionEnd(coords);
@@ -219,11 +228,24 @@ function App() {
 
         setPixels(newPixels);
         lastDrawPos.current = coords;
+      } else {
+        // lastDrawPosがnullの場合（キャンバス外から戻ってきた）、現在位置から開始
+        const newPixels = pixels.map(row => [...row]);
+        const color = currentTool === 'eraser' ? TRANSPARENT : currentColor;
+        drawPixel(coords.x, coords.y, newPixels, color);
+        setPixels(newPixels);
+        lastDrawPos.current = coords;
       }
     }
   };
 
-  const handleMouseUp = () => {
+  const handleMouseUp = (e: Konva.KonvaEventObject<PointerEvent>) => {
+    const stage = e.target.getStage();
+    if (stage) {
+      const canvas = stage.content;
+      canvas.releasePointerCapture(e.evt.pointerId);
+    }
+
     setIsDrawing(false);
     isPanning.current = false;
     lastDrawPos.current = null;
@@ -681,9 +703,9 @@ function App() {
       <Stage
         width={window.innerWidth}
         height={window.innerHeight}
-        onMouseDown={handleMouseDown}
-        onMouseMove={handleMouseMove}
-        onMouseUp={handleMouseUp}
+        onPointerDown={handleMouseDown}
+        onPointerMove={handleMouseMove}
+        onPointerUp={handleMouseUp}
         onContextMenu={handleContextMenu}
         onWheel={handleWheel}
         ref={stageRef}
