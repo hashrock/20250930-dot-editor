@@ -1,69 +1,10 @@
-import { useRef, useState, useEffect } from 'react';
+import { useRef, useState, useEffect, useCallback } from 'react';
 import { Stage, Layer, Rect, Line } from 'react-konva';
 import Konva from 'konva';
-import { Paintbrush, Eraser, PaintBucket, Square, Menu as MenuIcon, Copy, ClipboardPaste, Save, Grid3x3, Plus } from 'lucide-react';
-
-const CANVAS_SIZE = 32;
-const PIXEL_SIZE = 16;
-const TRANSPARENT = 'transparent';
-
-type Tool = 'brush' | 'eraser' | 'fill' | 'select';
-
-// Bresenham's line algorithm
-function bresenhamLine(x0: number, y0: number, x1: number, y1: number): Array<{x: number, y: number}> {
-  const points: Array<{x: number, y: number}> = [];
-  const dx = Math.abs(x1 - x0);
-  const dy = Math.abs(y1 - y0);
-  const sx = x0 < x1 ? 1 : -1;
-  const sy = y0 < y1 ? 1 : -1;
-  let err = dx - dy;
-
-  let x = x0;
-  let y = y0;
-
-  while (true) {
-    points.push({ x, y });
-
-    if (x === x1 && y === y1) break;
-
-    const e2 = 2 * err;
-    if (e2 > -dy) {
-      err -= dy;
-      x += sx;
-    }
-    if (e2 < dx) {
-      err += dx;
-      y += sy;
-    }
-  }
-
-  return points;
-}
-
-// Flood fill algorithm
-function floodFill(pixels: string[][], x: number, y: number, targetColor: string, replacementColor: string): string[][] {
-  if (targetColor === replacementColor) return pixels;
-  if (x < 0 || x >= CANVAS_SIZE || y < 0 || y >= CANVAS_SIZE) return pixels;
-  if (pixels[y][x] !== targetColor) return pixels;
-
-  const newPixels = pixels.map(row => [...row]);
-  const stack: Array<{x: number, y: number}> = [{x, y}];
-
-  while (stack.length > 0) {
-    const {x: cx, y: cy} = stack.pop()!;
-    if (cx < 0 || cx >= CANVAS_SIZE || cy < 0 || cy >= CANVAS_SIZE) continue;
-    if (newPixels[cy][cx] !== targetColor) continue;
-
-    newPixels[cy][cx] = replacementColor;
-
-    stack.push({x: cx + 1, y: cy});
-    stack.push({x: cx - 1, y: cy});
-    stack.push({x: cx, y: cy + 1});
-    stack.push({x: cx, y: cy - 1});
-  }
-
-  return newPixels;
-}
+import type { Tool } from './types';
+import { CANVAS_SIZE, PIXEL_SIZE, TRANSPARENT } from './types';
+import { bresenhamLine, floodFill } from './utils';
+import { Menu } from './components/Menu';
 
 function App() {
   const [pixels, setPixels] = useState<string[][]>(() =>
@@ -308,7 +249,7 @@ function App() {
     }, 'image/png');
   };
 
-  const copySelection = () => {
+  const copySelection = useCallback(() => {
     if (!selectionStart || !selectionEnd) return;
 
     const minX = Math.min(selectionStart.x, selectionEnd.x);
@@ -326,9 +267,9 @@ function App() {
     }
 
     setClipboard(selection);
-  };
+  }, [selectionStart, selectionEnd, pixels]);
 
-  const pasteSelection = () => {
+  const pasteSelection = useCallback(() => {
     if (!clipboard || !selectionStart) return;
 
     const newPixels = pixels.map(row => [...row]);
@@ -343,7 +284,7 @@ function App() {
     });
 
     setPixels(newPixels);
-  };
+  }, [clipboard, selectionStart, pixels]);
 
   const addColorToPalette = () => {
     if (!colorPalette.includes(currentColor)) {
@@ -377,7 +318,7 @@ function App() {
       document.removeEventListener('contextmenu', handleGlobalContextMenu);
       document.removeEventListener('keydown', handleKeyDown);
     };
-  }, [selectionStart, selectionEnd, clipboard, pixels]);
+  }, [copySelection, pasteSelection]);
 
   const getSelectionRect = () => {
     if (!selectionStart || !selectionEnd) return null;
@@ -395,13 +336,6 @@ function App() {
     };
   };
 
-  const toolIcons = {
-    brush: <Paintbrush size={14} />,
-    eraser: <Eraser size={14} />,
-    fill: <PaintBucket size={14} />,
-    select: <Square size={14} />
-  };
-
   return (
     <div style={{
       width: '100vw',
@@ -409,278 +343,27 @@ function App() {
       backgroundColor: '#e8e8e8',
       position: 'relative'
     }}>
-      {/* Floating Menu Button */}
-      <div style={{
-        position: 'absolute',
-        top: '12px',
-        left: '12px',
-        zIndex: 1000
-      }}>
-        <button
-          onClick={() => setShowMenu(!showMenu)}
-          style={{
-            padding: '8px 14px',
-            backgroundColor: 'rgba(255, 255, 255, 0.98)',
-            border: '1px solid #ddd',
-            borderRadius: '6px',
-            cursor: 'pointer',
-            fontSize: '13px',
-            fontWeight: '500',
-            boxShadow: '0 1px 4px rgba(0,0,0,0.1)',
-            color: '#333',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px'
-          }}
-        >
-          <MenuIcon size={16} />
-          <span>Menu</span>
-        </button>
-
-        {showMenu && (
-          <div style={{
-            marginTop: '6px',
-            padding: '10px',
-            backgroundColor: 'rgba(255, 255, 255, 0.98)',
-            border: '1px solid #ddd',
-            borderRadius: '6px',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
-            minWidth: '200px',
-            maxHeight: '80vh',
-            overflowY: 'auto'
-          }}>
-            {/* Tools */}
-            <div style={{ marginBottom: '10px' }}>
-              <label style={{ display: 'block', fontSize: '11px', color: '#888', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                Tools
-              </label>
-              <div style={{ display: 'flex', gap: '3px', flexWrap: 'wrap' }}>
-                {(['brush', 'eraser', 'fill', 'select'] as Tool[]).map(tool => (
-                  <button
-                    key={tool}
-                    onClick={() => setCurrentTool(tool)}
-                    style={{
-                      flex: '1 1 calc(50% - 2px)',
-                      padding: '7px 0',
-                      backgroundColor: currentTool === tool ? '#333' : '#f8f8f8',
-                      color: currentTool === tool ? 'white' : '#555',
-                      border: currentTool === tool ? '1px solid #333' : '1px solid #e0e0e0',
-                      borderRadius: '4px',
-                      cursor: 'pointer',
-                      fontSize: '11px',
-                      fontWeight: currentTool === tool ? '600' : '400',
-                      textTransform: 'capitalize',
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: '4px',
-                      transition: 'all 0.15s'
-                    }}
-                  >
-                    {toolIcons[tool]}
-                    <span>{tool}</span>
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Color */}
-            <div style={{ marginBottom: '10px' }}>
-              <label style={{ display: 'block', fontSize: '11px', color: '#888', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                Color
-              </label>
-              <input
-                type="color"
-                value={currentColor}
-                onChange={(e) => setCurrentColor(e.target.value)}
-                style={{
-                  width: '100%',
-                  height: '30px',
-                  border: '1px solid #ddd',
-                  borderRadius: '4px',
-                  cursor: 'pointer',
-                  padding: '2px'
-                }}
-              />
-            </div>
-
-            {/* Palette */}
-            <div style={{ marginBottom: '10px' }}>
-              <label style={{ display: 'block', fontSize: '11px', color: '#888', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                Palette
-              </label>
-              <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', marginBottom: '4px' }}>
-                {colorPalette.map((color, idx) => (
-                  <div
-                    key={idx}
-                    style={{
-                      position: 'relative',
-                      width: '26px',
-                      height: '26px',
-                      backgroundColor: color,
-                      border: currentColor === color ? '2px solid #333' : '1px solid #ddd',
-                      borderRadius: '3px',
-                      cursor: 'pointer',
-                      backgroundImage: color === TRANSPARENT ? 'linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%, #ccc), linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%, #ccc)' : 'none',
-                      backgroundSize: color === TRANSPARENT ? '8px 8px' : 'auto',
-                      backgroundPosition: color === TRANSPARENT ? '0 0, 4px 4px' : 'auto',
-                      transition: 'all 0.15s'
-                    }}
-                    onClick={() => setCurrentColor(color)}
-                    onContextMenu={(e) => {
-                      e.preventDefault();
-                      removeColorFromPalette(color);
-                    }}
-                  />
-                ))}
-              </div>
-              <button
-                onClick={addColorToPalette}
-                style={{
-                  padding: '5px 10px',
-                  backgroundColor: '#f8f8f8',
-                  border: '1px solid #e0e0e0',
-                  borderRadius: '4px',
-                  cursor: 'pointer',
-                  fontSize: '10px',
-                  width: '100%',
-                  color: '#555',
-                  fontWeight: '500'
-                }}
-              >
-<Plus size={12} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '2px' }} /> Add Color
-              </button>
-            </div>
-
-            {/* Brush Size */}
-            <div style={{ marginBottom: '10px' }}>
-              <label style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: '#888', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                <span>Brush Size</span>
-                <span style={{ color: '#333', fontWeight: '600' }}>{brushSize}</span>
-              </label>
-              <input
-                type="range"
-                min="1"
-                max="10"
-                value={brushSize}
-                onChange={(e) => setBrushSize(Number(e.target.value))}
-                style={{ width: '100%', height: '4px' }}
-              />
-            </div>
-
-            {/* Grid Toggle */}
-            <label style={{
-              display: 'flex',
-              alignItems: 'center',
-              gap: '6px',
-              fontSize: '12px',
-              color: '#555',
-              cursor: 'pointer',
-              marginBottom: '10px',
-              padding: '6px',
-              backgroundColor: '#f8f8f8',
-              borderRadius: '4px',
-              border: '1px solid #e0e0e0'
-            }}>
-              <input
-                type="checkbox"
-                checked={showGrid}
-                onChange={(e) => setShowGrid(e.target.checked)}
-                style={{ cursor: 'pointer' }}
-              />
-              <Grid3x3 size={14} />
-              <span>Show Grid</span>
-            </label>
-
-            {/* Copy/Paste */}
-            <div style={{ marginBottom: '10px' }}>
-              <button
-                onClick={copySelection}
-                disabled={!selectionStart || !selectionEnd}
-                style={{
-                  width: '100%',
-                  padding: '6px 10px',
-                  marginBottom: '3px',
-                  backgroundColor: '#f8f8f8',
-                  color: '#555',
-                  border: '1px solid #e0e0e0',
-                  borderRadius: '4px',
-                  cursor: selectionStart && selectionEnd ? 'pointer' : 'not-allowed',
-                  fontSize: '11px',
-                  opacity: selectionStart && selectionEnd ? 1 : 0.4,
-                  fontWeight: '500',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '6px'
-                }}
-              >
-                <Copy size={14} />
-                <span>Copy (⌘C)</span>
-              </button>
-              <button
-                onClick={pasteSelection}
-                disabled={!clipboard}
-                style={{
-                  width: '100%',
-                  padding: '6px 10px',
-                  backgroundColor: '#f8f8f8',
-                  color: '#555',
-                  border: '1px solid #e0e0e0',
-                  borderRadius: '4px',
-                  cursor: clipboard ? 'pointer' : 'not-allowed',
-                  fontSize: '11px',
-                  opacity: clipboard ? 1 : 0.4,
-                  fontWeight: '500',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '6px'
-                }}
-              >
-                <ClipboardPaste size={14} />
-                <span>Paste (⌘V)</span>
-              </button>
-            </div>
-
-            {/* Save */}
-            <button
-              onClick={savePNG}
-              style={{
-                width: '100%',
-                padding: '8px 12px',
-                backgroundColor: '#333',
-                color: 'white',
-                border: 'none',
-                borderRadius: '4px',
-                cursor: 'pointer',
-                fontSize: '12px',
-                fontWeight: '600',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '6px'
-              }}
-            >
-              <Save size={14} />
-              <span>Save PNG</span>
-            </button>
-
-            {/* Help */}
-            <div style={{
-              marginTop: '10px',
-              paddingTop: '10px',
-              borderTop: '1px solid #e8e8e8',
-              fontSize: '10px',
-              color: '#999',
-              lineHeight: '1.6'
-            }}>
-              Left: Draw | Right: Pick<br/>
-              Wheel: Zoom | Middle: Pan
-            </div>
-          </div>
-        )}
-      </div>
+      <Menu
+        showMenu={showMenu}
+        setShowMenu={setShowMenu}
+        currentTool={currentTool}
+        setCurrentTool={setCurrentTool}
+        currentColor={currentColor}
+        setCurrentColor={setCurrentColor}
+        colorPalette={colorPalette}
+        addColorToPalette={addColorToPalette}
+        removeColorFromPalette={removeColorFromPalette}
+        brushSize={brushSize}
+        setBrushSize={setBrushSize}
+        showGrid={showGrid}
+        setShowGrid={setShowGrid}
+        copySelection={copySelection}
+        pasteSelection={pasteSelection}
+        selectionStart={selectionStart}
+        selectionEnd={selectionEnd}
+        clipboard={clipboard}
+        savePNG={savePNG}
+      />
 
       {/* Zoom indicator */}
       <div style={{
