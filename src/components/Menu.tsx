@@ -189,7 +189,7 @@ export function Menu({
             <label style={{ display: 'block', fontSize: '11px', color: '#888', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
               Palette
             </label>
-            <div style={{ display: 'flex', gap: '3px', flexWrap: 'wrap', marginBottom: '4px', maxHeight: '120px', overflowY: 'auto' }}>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(8, 1fr)', gap: '3px', marginBottom: '4px', maxHeight: '120px', overflowY: 'auto' }}>
               {colorPalette.map((color, idx) => (
                 <div
                   key={idx}
@@ -215,7 +215,7 @@ export function Menu({
                   }}
                   onClick={() => setCurrentColor(color)}
                 >
-                  {hoveredIndex === idx && (
+                  {hoveredIndex === idx && currentColor === color && (
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
