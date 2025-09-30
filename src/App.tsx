@@ -372,6 +372,13 @@ function App() {
     };
   };
 
+  const toolIcons = {
+    brush: '🖌️',
+    eraser: '🧹',
+    fill: '🪣',
+    select: '⬚'
+  };
+
   return (
     <div style={{
       width: '100vw',
@@ -382,96 +389,119 @@ function App() {
       {/* Floating Menu Button */}
       <div style={{
         position: 'absolute',
-        top: '16px',
-        left: '16px',
+        top: '12px',
+        left: '12px',
         zIndex: 1000
       }}>
         <button
           onClick={() => setShowMenu(!showMenu)}
           style={{
-            padding: '10px 16px',
-            backgroundColor: 'rgba(255, 255, 255, 0.95)',
-            border: '1px solid #ccc',
-            borderRadius: '8px',
+            padding: '8px 14px',
+            backgroundColor: 'rgba(255, 255, 255, 0.98)',
+            border: '1px solid #ddd',
+            borderRadius: '6px',
             cursor: 'pointer',
-            fontSize: '14px',
+            fontSize: '13px',
             fontWeight: '500',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-            color: '#333'
+            boxShadow: '0 1px 4px rgba(0,0,0,0.1)',
+            color: '#333',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '6px'
           }}
         >
-          ☰ Menu
+          <span style={{ fontSize: '16px' }}>☰</span>
+          <span>Menu</span>
         </button>
 
         {showMenu && (
           <div style={{
-            marginTop: '8px',
-            padding: '12px',
-            backgroundColor: 'rgba(255, 255, 255, 0.95)',
-            border: '1px solid #ccc',
-            borderRadius: '8px',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
-            minWidth: '220px',
+            marginTop: '6px',
+            padding: '10px',
+            backgroundColor: 'rgba(255, 255, 255, 0.98)',
+            border: '1px solid #ddd',
+            borderRadius: '6px',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
+            minWidth: '200px',
             maxHeight: '80vh',
             overflowY: 'auto'
           }}>
-            <div style={{ marginBottom: '12px' }}>
-              <label style={{ display: 'block', fontSize: '12px', color: '#666', marginBottom: '4px' }}>
-                Tool
+            {/* Tools */}
+            <div style={{ marginBottom: '10px' }}>
+              <label style={{ display: 'block', fontSize: '11px', color: '#888', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                Tools
               </label>
-              <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+              <div style={{ display: 'flex', gap: '3px', flexWrap: 'wrap' }}>
                 {(['brush', 'eraser', 'fill', 'select'] as Tool[]).map(tool => (
                   <button
                     key={tool}
                     onClick={() => setCurrentTool(tool)}
                     style={{
-                      padding: '6px 12px',
-                      backgroundColor: currentTool === tool ? '#333' : '#f5f5f5',
-                      color: currentTool === tool ? 'white' : '#333',
-                      border: '1px solid #ccc',
+                      flex: '1 1 calc(50% - 2px)',
+                      padding: '7px 0',
+                      backgroundColor: currentTool === tool ? '#333' : '#f8f8f8',
+                      color: currentTool === tool ? 'white' : '#555',
+                      border: currentTool === tool ? '1px solid #333' : '1px solid #e0e0e0',
                       borderRadius: '4px',
                       cursor: 'pointer',
-                      fontSize: '12px',
-                      textTransform: 'capitalize'
+                      fontSize: '11px',
+                      fontWeight: currentTool === tool ? '600' : '400',
+                      textTransform: 'capitalize',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '4px',
+                      transition: 'all 0.15s'
                     }}
                   >
-                    {tool}
+                    <span style={{ fontSize: '14px' }}>{toolIcons[tool]}</span>
+                    <span>{tool}</span>
                   </button>
                 ))}
               </div>
             </div>
 
-            <div style={{ marginBottom: '12px' }}>
-              <label style={{ display: 'block', fontSize: '12px', color: '#666', marginBottom: '4px' }}>
+            {/* Color */}
+            <div style={{ marginBottom: '10px' }}>
+              <label style={{ display: 'block', fontSize: '11px', color: '#888', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                 Color
               </label>
               <input
                 type="color"
                 value={currentColor}
                 onChange={(e) => setCurrentColor(e.target.value)}
-                style={{ width: '100%', height: '32px', border: '1px solid #ccc', borderRadius: '4px', cursor: 'pointer' }}
+                style={{
+                  width: '100%',
+                  height: '30px',
+                  border: '1px solid #ddd',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  padding: '2px'
+                }}
               />
             </div>
 
-            <div style={{ marginBottom: '12px' }}>
-              <label style={{ display: 'block', fontSize: '12px', color: '#666', marginBottom: '4px' }}>
+            {/* Palette */}
+            <div style={{ marginBottom: '10px' }}>
+              <label style={{ display: 'block', fontSize: '11px', color: '#888', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
                 Palette
               </label>
-              <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', marginBottom: '6px' }}>
+              <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', marginBottom: '4px' }}>
                 {colorPalette.map((color, idx) => (
                   <div
                     key={idx}
                     style={{
                       position: 'relative',
-                      width: '28px',
-                      height: '28px',
+                      width: '26px',
+                      height: '26px',
                       backgroundColor: color,
-                      border: currentColor === color ? '2px solid #333' : '1px solid #ccc',
-                      borderRadius: '4px',
+                      border: currentColor === color ? '2px solid #333' : '1px solid #ddd',
+                      borderRadius: '3px',
                       cursor: 'pointer',
                       backgroundImage: color === TRANSPARENT ? 'linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%, #ccc), linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%, #ccc)' : 'none',
                       backgroundSize: color === TRANSPARENT ? '8px 8px' : 'auto',
-                      backgroundPosition: color === TRANSPARENT ? '0 0, 4px 4px' : 'auto'
+                      backgroundPosition: color === TRANSPARENT ? '0 0, 4px 4px' : 'auto',
+                      transition: 'all 0.15s'
                     }}
                     onClick={() => setCurrentColor(color)}
                     onContextMenu={(e) => {
@@ -484,22 +514,26 @@ function App() {
               <button
                 onClick={addColorToPalette}
                 style={{
-                  padding: '4px 8px',
-                  backgroundColor: '#f5f5f5',
-                  border: '1px solid #ccc',
+                  padding: '5px 10px',
+                  backgroundColor: '#f8f8f8',
+                  border: '1px solid #e0e0e0',
                   borderRadius: '4px',
                   cursor: 'pointer',
-                  fontSize: '11px',
-                  width: '100%'
+                  fontSize: '10px',
+                  width: '100%',
+                  color: '#555',
+                  fontWeight: '500'
                 }}
               >
-                Add Current Color
+                ➕ Add Color
               </button>
             </div>
 
-            <div style={{ marginBottom: '12px' }}>
-              <label style={{ display: 'block', fontSize: '12px', color: '#666', marginBottom: '4px' }}>
-                Brush Size: {brushSize}
+            {/* Brush Size */}
+            <div style={{ marginBottom: '10px' }}>
+              <label style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: '#888', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                <span>Brush Size</span>
+                <span style={{ color: '#333', fontWeight: '600' }}>{brushSize}</span>
               </label>
               <input
                 type="range"
@@ -507,18 +541,23 @@ function App() {
                 max="10"
                 value={brushSize}
                 onChange={(e) => setBrushSize(Number(e.target.value))}
-                style={{ width: '100%' }}
+                style={{ width: '100%', height: '4px' }}
               />
             </div>
 
+            {/* Grid Toggle */}
             <label style={{
               display: 'flex',
               alignItems: 'center',
               gap: '6px',
-              fontSize: '14px',
-              color: '#666',
+              fontSize: '12px',
+              color: '#555',
               cursor: 'pointer',
-              marginBottom: '12px'
+              marginBottom: '10px',
+              padding: '6px',
+              backgroundColor: '#f8f8f8',
+              borderRadius: '4px',
+              border: '1px solid #e0e0e0'
             }}>
               <input
                 type="checkbox"
@@ -526,77 +565,95 @@ function App() {
                 onChange={(e) => setShowGrid(e.target.checked)}
                 style={{ cursor: 'pointer' }}
               />
-              Show Grid
+              <span style={{ fontSize: '14px' }}>⊞</span>
+              <span>Show Grid</span>
             </label>
 
-            <div style={{ marginBottom: '12px' }}>
+            {/* Copy/Paste */}
+            <div style={{ marginBottom: '10px' }}>
               <button
                 onClick={copySelection}
                 disabled={!selectionStart || !selectionEnd}
                 style={{
                   width: '100%',
-                  padding: '6px 12px',
-                  marginBottom: '4px',
-                  backgroundColor: '#f5f5f5',
-                  color: '#333',
-                  border: '1px solid #ccc',
+                  padding: '6px 10px',
+                  marginBottom: '3px',
+                  backgroundColor: '#f8f8f8',
+                  color: '#555',
+                  border: '1px solid #e0e0e0',
                   borderRadius: '4px',
                   cursor: selectionStart && selectionEnd ? 'pointer' : 'not-allowed',
-                  fontSize: '12px',
-                  opacity: selectionStart && selectionEnd ? 1 : 0.5
+                  fontSize: '11px',
+                  opacity: selectionStart && selectionEnd ? 1 : 0.4,
+                  fontWeight: '500',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px'
                 }}
               >
-                Copy (Ctrl+C)
+                <span>📋</span>
+                <span>Copy (⌘C)</span>
               </button>
               <button
                 onClick={pasteSelection}
                 disabled={!clipboard}
                 style={{
                   width: '100%',
-                  padding: '6px 12px',
-                  backgroundColor: '#f5f5f5',
-                  color: '#333',
-                  border: '1px solid #ccc',
+                  padding: '6px 10px',
+                  backgroundColor: '#f8f8f8',
+                  color: '#555',
+                  border: '1px solid #e0e0e0',
                   borderRadius: '4px',
                   cursor: clipboard ? 'pointer' : 'not-allowed',
-                  fontSize: '12px',
-                  opacity: clipboard ? 1 : 0.5
+                  fontSize: '11px',
+                  opacity: clipboard ? 1 : 0.4,
+                  fontWeight: '500',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px'
                 }}
               >
-                Paste (Ctrl+V)
+                <span>📄</span>
+                <span>Paste (⌘V)</span>
               </button>
             </div>
 
+            {/* Save */}
             <button
               onClick={savePNG}
               style={{
                 width: '100%',
-                padding: '8px 16px',
+                padding: '8px 12px',
                 backgroundColor: '#333',
                 color: 'white',
                 border: 'none',
                 borderRadius: '4px',
                 cursor: 'pointer',
-                fontSize: '14px',
-                fontWeight: '500'
+                fontSize: '12px',
+                fontWeight: '600',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '6px'
               }}
             >
-              Save PNG
+              <span>💾</span>
+              <span>Save PNG</span>
             </button>
 
+            {/* Help */}
             <div style={{
-              marginTop: '12px',
-              paddingTop: '12px',
-              borderTop: '1px solid #e0e0e0',
-              fontSize: '11px',
+              marginTop: '10px',
+              paddingTop: '10px',
+              borderTop: '1px solid #e8e8e8',
+              fontSize: '10px',
               color: '#999',
-              lineHeight: '1.5'
+              lineHeight: '1.6'
             }}>
-              Left: Draw<br/>
-              Right: Pick (brush/eraser)<br/>
-              Wheel: Zoom<br/>
-              Middle: Pan<br/>
-              Ctrl+C/V: Copy/Paste
+              Left: Draw | Right: Pick<br/>
+              Wheel: Zoom | Middle: Pan
             </div>
           </div>
         )}
@@ -605,16 +662,17 @@ function App() {
       {/* Zoom indicator */}
       <div style={{
         position: 'absolute',
-        bottom: '16px',
-        right: '16px',
-        padding: '6px 12px',
-        backgroundColor: 'rgba(255, 255, 255, 0.9)',
-        border: '1px solid #ccc',
-        borderRadius: '6px',
-        fontSize: '12px',
+        bottom: '12px',
+        right: '12px',
+        padding: '5px 10px',
+        backgroundColor: 'rgba(255, 255, 255, 0.98)',
+        border: '1px solid #ddd',
+        borderRadius: '4px',
+        fontSize: '11px',
         color: '#666',
-        boxShadow: '0 2px 6px rgba(0,0,0,0.1)',
-        zIndex: 1000
+        boxShadow: '0 1px 4px rgba(0,0,0,0.08)',
+        zIndex: 1000,
+        fontWeight: '600'
       }}>
         {(scale * 100).toFixed(0)}%
       </div>
