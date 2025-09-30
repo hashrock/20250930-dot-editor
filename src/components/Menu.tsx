@@ -44,7 +44,7 @@ interface MenuProps {
   undo: () => void;
   redo: () => void;
   loadPNG: () => void;
-  newCanvas: () => void;
+  onRequestNewCanvas: () => void;
   canUndo: boolean;
   canRedo: boolean;
 }
@@ -82,7 +82,7 @@ export function Menu({
   undo,
   redo,
   loadPNG,
-  newCanvas,
+  onRequestNewCanvas,
   canUndo,
   canRedo,
 }: MenuProps) {
@@ -303,12 +303,12 @@ export function Menu({
                   type="button"
                   className="menu-button menu-button--ghost"
                   onClick={() => {
-                    newCanvas();
+                    onRequestNewCanvas();
                     setShowMenu(false);
                   }}
                 >
                   <FilePlus size={14} />
-                  <span>New Canvas</span>
+                  <span>New Canvas…</span>
                 </button>
                 <button
                   type="button"

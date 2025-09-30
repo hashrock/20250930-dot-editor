@@ -5,10 +5,15 @@ import type { Tool } from './types';
 import { CANVAS_SIZE, PIXEL_SIZE, TRANSPARENT } from './types';
 import { bresenhamLine, floodFill } from './utils';
 import { Menu } from './components/Menu';
+import { NewCanvasModal } from './components/NewCanvasModal';
 import './App.css';
 
+const MIN_CANVAS_SIZE = 8;
+const MAX_CANVAS_SIZE = 128;
+
 function App() {
-  const [canvasSize, setCanvasSize] = useState(CANVAS_SIZE);
+  const [canvasWidth, setCanvasWidth] = useState(CANVAS_SIZE);
+  const [canvasHeight, setCanvasHeight] = useState(CANVAS_SIZE);
   const [pixels, setPixels] = useState<string[][]>(() =>
     Array(CANVAS_SIZE).fill(null).map(() => Array(CANVAS_SIZE).fill(TRANSPARENT))
   );
@@ -36,6 +41,7 @@ function App() {
   const [selectionStart, setSelectionStart] = useState<{x: number, y: number} | null>(null);
   const [selectionEnd, setSelectionEnd] = useState<{x: number, y: number} | null>(null);
   const [clipboard, setClipboard] = useState<string[][] | null>(null);
+  const [isNewCanvasModalOpen, setIsNewCanvasModalOpen] = useState(false);
   const stageRef = useRef<Konva.Stage>(null);
   const isPanning = useRef(false);
   const lastPos = useRef({ x: 0, y: 0 });
@@ -44,10 +50,10 @@ function App() {
 
   // Center canvas on mount and when canvas size changes
   useEffect(() => {
-    const centerX = (window.innerWidth - canvasSize * PIXEL_SIZE) / 2;
-    const centerY = (window.innerHeight - canvasSize * PIXEL_SIZE) / 2;
+    const centerX = (window.innerWidth - canvasWidth * PIXEL_SIZE) / 2;
+    const centerY = (window.innerHeight - canvasHeight * PIXEL_SIZE) / 2;
     setPosition({ x: centerX, y: centerY });
-  }, [canvasSize]);
+  }, [canvasWidth, canvasHeight]);
 
   const getPixelCoordinates = (e: Konva.KonvaEventObject<MouseEvent | TouchEvent | PointerEvent>, clamp: boolean = true) => {
     const stage = e.target.getStage();
@@ -59,8 +65,8 @@ function App() {
     const x = Math.floor((pos.x - position.x) / (PIXEL_SIZE * scale));
     const y = Math.floor((pos.y - position.y) / (PIXEL_SIZE * scale));
 
-    const width = pixels[0]?.length || canvasSize;
-    const height = pixels.length || canvasSize;
+    const width = pixels[0]?.length || canvasWidth;
+    const height = pixels.length || canvasHeight;
 
     if (clamp) {
       if (x >= 0 && x < width && y >= 0 && y < height) {
@@ -350,9 +356,14 @@ function App() {
     setColorPalette(colorPalette.filter(c => c !== color));
   };
 
-  const newCanvas = useCallback(() => {
-    const newPixels = Array(CANVAS_SIZE).fill(null).map(() => Array(CANVAS_SIZE).fill(TRANSPARENT));
-    setCanvasSize(CANVAS_SIZE);
+  const newCanvas = useCallback((width: number, height: number) => {
+    const requestedWidth = Number.isFinite(width) ? Math.floor(width) : CANVAS_SIZE;
+    const requestedHeight = Number.isFinite(height) ? Math.floor(height) : CANVAS_SIZE;
+    const clampedWidth = Math.min(Math.max(requestedWidth, MIN_CANVAS_SIZE), MAX_CANVAS_SIZE);
+    const clampedHeight = Math.min(Math.max(requestedHeight, MIN_CANVAS_SIZE), MAX_CANVAS_SIZE);
+    const newPixels = Array(clampedHeight).fill(null).map(() => Array(clampedWidth).fill(TRANSPARENT));
+    setCanvasWidth(clampedWidth);
+    setCanvasHeight(clampedHeight);
     setPixels(newPixels);
     setHistory([]);
     setHistoryIndex(-1);
@@ -360,6 +371,19 @@ function App() {
     setSelectionEnd(null);
     setClipboard(null);
   }, []);
+
+  const openNewCanvasModal = useCallback(() => {
+    setIsNewCanvasModalOpen(true);
+  }, []);
+
+  const closeNewCanvasModal = useCallback(() => {
+    setIsNewCanvasModalOpen(false);
+  }, []);
+
+  const handleConfirmNewCanvas = useCallback((width: number, height: number) => {
+    newCanvas(width, height);
+    setIsNewCanvasModalOpen(false);
+  }, [newCanvas]);
 
   const undo = useCallback(() => {
     if (historyIndex > 0) {
@@ -447,7 +471,8 @@ function App() {
         setColorPalette(palette);
 
         // Update canvas size to match image
-        setCanvasSize(Math.max(img.width, img.height));
+        setCanvasWidth(img.width);
+        setCanvasHeight(img.height);
         saveToHistory(newPixels);
       };
       img.src = event.target?.result as string;
@@ -585,9 +610,19 @@ function App() {
         undo={undo}
         redo={redo}
         loadPNG={loadPNG}
-        newCanvas={newCanvas}
+        onRequestNewCanvas={openNewCanvasModal}
         canUndo={historyIndex > 0}
         canRedo={historyIndex < history.length - 1}
+      />
+
+      <NewCanvasModal
+        isOpen={isNewCanvasModalOpen}
+        onClose={closeNewCanvasModal}
+        onConfirm={handleConfirmNewCanvas}
+        defaultWidth={canvasWidth}
+        defaultHeight={canvasHeight}
+        minSize={MIN_CANVAS_SIZE}
+        maxSize={MAX_CANVAS_SIZE}
       />
 
       {/* Zoom indicator */}
