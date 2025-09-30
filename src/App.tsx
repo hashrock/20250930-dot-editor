@@ -5,6 +5,7 @@ import type { Tool } from './types';
 import { CANVAS_SIZE, PIXEL_SIZE, TRANSPARENT } from './types';
 import { bresenhamLine, floodFill } from './utils';
 import { Menu } from './components/Menu';
+import './App.css';
 
 function App() {
   const [canvasSize, setCanvasSize] = useState(CANVAS_SIZE);
@@ -552,12 +553,7 @@ function App() {
   }, [pixels]);
 
   return (
-    <div style={{
-      width: '100vw',
-      height: '100vh',
-      backgroundColor: '#e8e8e8',
-      position: 'relative'
-    }}>
+    <div className="app-shell">
       <input
         ref={fileInputRef}
         type="file"
@@ -595,20 +591,7 @@ function App() {
       />
 
       {/* Zoom indicator */}
-      <div style={{
-        position: 'absolute',
-        bottom: '12px',
-        right: '12px',
-        padding: '5px 10px',
-        backgroundColor: 'rgba(255, 255, 255, 0.98)',
-        border: '1px solid #ddd',
-        borderRadius: '4px',
-        fontSize: '11px',
-        color: '#666',
-        boxShadow: '0 1px 4px rgba(0,0,0,0.08)',
-        zIndex: 1000,
-        fontWeight: '600'
-      }}>
+      <div className="zoom-indicator">
         {(scale * 100).toFixed(0)}%
       </div>
 
@@ -649,7 +632,7 @@ function App() {
                   <Line
                     key={`v-${i}`}
                     points={[i * PIXEL_SIZE, 0, i * PIXEL_SIZE, height * PIXEL_SIZE]}
-                    stroke="#d0d0d0"
+                    stroke="#c2c2c2"
                     strokeWidth={0.3}
                   />
                 ))}
@@ -657,7 +640,7 @@ function App() {
                   <Line
                     key={`h-${i}`}
                     points={[0, i * PIXEL_SIZE, width * PIXEL_SIZE, i * PIXEL_SIZE]}
-                    stroke="#d0d0d0"
+                    stroke="#c2c2c2"
                     strokeWidth={0.3}
                   />
                 ))}
@@ -675,9 +658,9 @@ function App() {
                   y={rect.y}
                   width={rect.width}
                   height={rect.height}
-                  stroke="#0080ff"
-                  strokeWidth={2 / scale}
-                  dash={[8 / scale, 4 / scale]}
+                  stroke="#111"
+                  strokeWidth={1.5 / scale}
+                  dash={[4 / scale, 3 / scale]}
                   listening={false}
                 />
               );

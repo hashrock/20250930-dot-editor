@@ -1,7 +1,25 @@
 import React from 'react';
-import { Paintbrush, Eraser, PaintBucket, Square, Menu as MenuIcon, Copy, ClipboardPaste, Save, Grid3x3, Plus, Undo, Redo, Upload, FilePlus, X } from 'lucide-react';
+import {
+  Paintbrush,
+  Eraser,
+  PaintBucket,
+  Square,
+  Menu as MenuIcon,
+  Copy,
+  ClipboardPaste,
+  Save,
+  Grid3x3,
+  Plus,
+  Undo,
+  Redo,
+  Upload,
+  FilePlus,
+  X,
+  ChevronDown,
+} from 'lucide-react';
 import type { Tool } from '../types';
-import {TRANSPARENT} from '../types';
+import { TRANSPARENT } from '../types';
+import './Menu.css';
 
 interface MenuProps {
   showMenu: boolean;
@@ -20,8 +38,8 @@ interface MenuProps {
   setShowGrid: (show: boolean) => void;
   copySelection: () => void;
   pasteSelection: () => void;
-  selectionStart: {x: number, y: number} | null;
-  selectionEnd: {x: number, y: number} | null;
+  selectionStart: { x: number; y: number } | null;
+  selectionEnd: { x: number; y: number } | null;
   clipboard: string[][] | null;
   savePNG: () => void;
   undo: () => void;
@@ -32,12 +50,14 @@ interface MenuProps {
   canRedo: boolean;
 }
 
-const toolIcons = {
+const toolIcons: Record<Tool, React.ReactNode> = {
   brush: <Paintbrush size={14} />,
   eraser: <Eraser size={14} />,
   fill: <PaintBucket size={14} />,
-  select: <Square size={14} />
+  select: <Square size={14} />,
 };
+
+const tools: Tool[] = ['brush', 'eraser', 'fill', 'select'];
 
 export function Menu({
   showMenu,
@@ -65,17 +85,18 @@ export function Menu({
   loadPNG,
   newCanvas,
   canUndo,
-  canRedo
+  canRedo,
 }: MenuProps) {
   const [draggedIndex, setDraggedIndex] = React.useState<number | null>(null);
   const [hoveredIndex, setHoveredIndex] = React.useState<number | null>(null);
+  const [showActions, setShowActions] = React.useState(false);
 
   const handleDragStart = (index: number) => {
     setDraggedIndex(index);
   };
 
-  const handleDragOver = (e: React.DragEvent, index: number) => {
-    e.preventDefault();
+  const handleDragOver = (event: React.DragEvent<HTMLDivElement>, index: number) => {
+    event.preventDefault();
     if (draggedIndex === null || draggedIndex === index) return;
 
     const newPalette = [...colorPalette];
@@ -89,398 +110,230 @@ export function Menu({
     setDraggedIndex(null);
   };
 
+  const brushPreviewSize = Math.max(6, brushSize * 2);
+
   return (
-    <div style={{
-      position: 'absolute',
-      top: '12px',
-      left: '12px',
-      zIndex: 1000
-    }}>
+    <div className="menu">
       <button
+        type="button"
+        className="menu__toggle"
         onClick={() => setShowMenu(!showMenu)}
-        style={{
-          padding: '8px 14px',
-          backgroundColor: 'rgba(255, 255, 255, 0.98)',
-          border: '1px solid #ddd',
-          borderRadius: '6px',
-          cursor: 'pointer',
-          fontSize: '13px',
-          fontWeight: '500',
-          boxShadow: '0 1px 4px rgba(0,0,0,0.1)',
-          color: '#333',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '6px'
-        }}
+        aria-expanded={showMenu}
       >
-        <MenuIcon size={16} />
+        <MenuIcon size={14} />
         <span>Menu</span>
       </button>
 
       {showMenu && (
-        <div style={{
-          marginTop: '6px',
-          padding: '10px',
-          backgroundColor: 'rgba(255, 255, 255, 0.98)',
-          border: '1px solid #ddd',
-          borderRadius: '6px',
-          boxShadow: '0 2px 8px rgba(0,0,0,0.12)',
-          minWidth: '200px',
-          maxHeight: '80vh',
-          overflowY: 'auto'
-        }}>
-          {/* Tools */}
-          <div style={{ marginBottom: '10px' }}>
-            <label style={{ display: 'block', fontSize: '11px', color: '#888', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-              Tools
-            </label>
-            <div style={{ display: 'flex', gap: '3px', flexWrap: 'wrap' }}>
-              {(['brush', 'eraser', 'fill', 'select'] as Tool[]).map(tool => (
+        <div className="menu__panel">
+          <section className="menu-section">
+            <div className="menu-section__header">
+              <span className="menu-section__label">Tools</span>
+            </div>
+            <div className="menu-tools">
+              {tools.map((tool) => (
                 <button
                   key={tool}
+                  type="button"
+                  className={`menu-tool${currentTool === tool ? ' is-active' : ''}`}
                   onClick={() => setCurrentTool(tool)}
-                  style={{
-                    flex: '1 1 calc(50% - 2px)',
-                    padding: '7px 0',
-                    backgroundColor: currentTool === tool ? '#333' : '#f8f8f8',
-                    color: currentTool === tool ? 'white' : '#555',
-                    border: currentTool === tool ? '1px solid #333' : '1px solid #e0e0e0',
-                    borderRadius: '4px',
-                    cursor: 'pointer',
-                    fontSize: '11px',
-                    fontWeight: currentTool === tool ? '600' : '400',
-                    textTransform: 'capitalize',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    gap: '4px',
-                    transition: 'all 0.15s'
-                  }}
                 >
                   {toolIcons[tool]}
-                  <span>{tool}</span>
+                  <span className="menu-tool__label">{tool}</span>
                 </button>
               ))}
             </div>
-          </div>
+          </section>
 
-          {/* Color */}
-          <div style={{ marginBottom: '10px' }}>
-            <label style={{ display: 'block', fontSize: '11px', color: '#888', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-              Color
-            </label>
+          <section className="menu-section">
+            <div className="menu-section__header">
+              <span className="menu-section__label">Color</span>
+            </div>
             <input
+              className="menu-color-input"
               type="color"
               value={currentColor}
-              onChange={(e) => setCurrentColor(e.target.value)}
-              style={{
-                width: '100%',
-                height: '30px',
-                border: '1px solid #ddd',
-                borderRadius: '4px',
-                cursor: 'pointer',
-                padding: '2px'
-              }}
+              onChange={(event) => setCurrentColor(event.target.value)}
+              aria-label="Current color"
             />
-          </div>
+          </section>
 
-          {/* Palette */}
-          <div style={{ marginBottom: '10px' }}>
-            <label style={{ display: 'block', fontSize: '11px', color: '#888', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-              Palette
-            </label>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(8, 1fr)', gap: '3px', marginBottom: '4px', maxHeight: '120px', overflowY: 'auto' }}>
-              {colorPalette.map((color, idx) => (
-                <div
-                  key={idx}
-                  draggable
-                  onDragStart={() => handleDragStart(idx)}
-                  onDragOver={(e) => handleDragOver(e, idx)}
-                  onDragEnd={handleDragEnd}
-                  onMouseEnter={() => setHoveredIndex(idx)}
-                  onMouseLeave={() => setHoveredIndex(null)}
-                  style={{
-                    position: 'relative',
-                    width: '24px',
-                    height: '24px',
-                    backgroundColor: color,
-                    border: currentColor === color ? '2px solid #333' : '1px solid #ddd',
-                    borderRadius: '3px',
-                    cursor: draggedIndex === idx ? 'grabbing' : 'grab',
-                    backgroundImage: color === TRANSPARENT ? 'linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%, #ccc), linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%, #ccc)' : 'none',
-                    backgroundSize: color === TRANSPARENT ? '8px 8px' : 'auto',
-                    backgroundPosition: color === TRANSPARENT ? '0 0, 4px 4px' : 'auto',
-                    transition: 'all 0.15s',
-                    opacity: draggedIndex === idx ? 0.5 : 1
-                  }}
-                  onClick={() => setCurrentColor(color)}
-                >
-                  {hoveredIndex === idx && currentColor === color && (
-                    <button
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        removeColorFromPalette(color);
-                      }}
-                      style={{
-                        position: 'absolute',
-                        top: '-4px',
-                        right: '-4px',
-                        width: '12px',
-                        height: '12px',
-                        borderRadius: '50%',
-                        border: 'none',
-                        backgroundColor: '#ff4444',
-                        color: 'white',
-                        cursor: 'pointer',
-                        fontSize: '8px',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        padding: 0,
-                        lineHeight: 1
-                      }}
-                    >
-                      <X size={8} />
-                    </button>
-                  )}
-                </div>
-              ))}
+          <section className="menu-section">
+            <div className="menu-section__header">
+              <span className="menu-section__label">Palette</span>
+            </div>
+            <div className="menu-palette">
+              {colorPalette.map((color, index) => {
+                const classes = ['menu-swatch'];
+                if (color === TRANSPARENT) classes.push('menu-swatch--transparent');
+                if (currentColor === color) classes.push('is-active');
+                if (draggedIndex === index) classes.push('is-dragging');
+
+                return (
+                  <div
+                    key={`${color}-${index}`}
+                    className={classes.join(' ')}
+                    draggable
+                    onDragStart={() => handleDragStart(index)}
+                    onDragOver={(event) => handleDragOver(event, index)}
+                    onDragEnd={handleDragEnd}
+                    onMouseEnter={() => setHoveredIndex(index)}
+                    onMouseLeave={() => setHoveredIndex(null)}
+                    style={{ backgroundColor: color === TRANSPARENT ? 'transparent' : color }}
+                    onClick={() => setCurrentColor(color)}
+                  >
+                    {hoveredIndex === index && currentColor === color && color !== TRANSPARENT && (
+                      <button
+                        type="button"
+                        className="menu-swatch__remove"
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          removeColorFromPalette(color);
+                        }}
+                        aria-label={`Remove ${color} from palette`}
+                      >
+                        <X size={8} />
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
             </div>
             <button
+              type="button"
+              className="menu-button menu-button--subtle"
               onClick={addColorToPalette}
-              style={{
-                padding: '5px 10px',
-                backgroundColor: '#f8f8f8',
-                border: '1px solid #e0e0e0',
-                borderRadius: '4px',
-                cursor: 'pointer',
-                fontSize: '10px',
-                width: '100%',
-                color: '#555',
-                fontWeight: '500'
-              }}
             >
-              <Plus size={12} style={{ display: 'inline', verticalAlign: 'middle', marginRight: '2px' }} /> Add Color
+              <Plus size={12} />
+              <span>Add Color</span>
             </button>
-          </div>
+          </section>
 
-          {/* Brush Size */}
-          <div style={{ marginBottom: '10px' }}>
-            <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11px', color: '#888', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-              <span>Brush Size</span>
-              <div style={{
-                width: `${brushSize * 3}px`,
-                height: `${brushSize * 3}px`,
-                backgroundColor: '#333',
-                borderRadius: brushSize === 1 ? '0' : '50%',
-                border: '1px solid #ddd'
-              }} />
-            </label>
+          <section className="menu-section">
+            <div className="menu-section__header">
+              <span className="menu-section__label">Brush Size</span>
+              <div
+                className="menu-brush-preview"
+                style={{
+                  width: `${brushPreviewSize}px`,
+                  height: `${brushPreviewSize}px`,
+                  borderRadius: brushSize === 1 ? '2px' : '999px',
+                }}
+              />
+            </div>
             <input
+              className="menu-slider"
               type="range"
               min="1"
               max="10"
               value={brushSize}
-              onChange={(e) => setBrushSize(Number(e.target.value))}
-              style={{ width: '100%', height: '4px' }}
+              onChange={(event) => setBrushSize(Number(event.target.value))}
             />
-          </div>
+          </section>
 
-          {/* Grid Toggle */}
-          <label style={{
-            display: 'flex',
-            alignItems: 'center',
-            gap: '6px',
-            fontSize: '12px',
-            color: '#555',
-            cursor: 'pointer',
-            marginBottom: '10px',
-            padding: '6px',
-            backgroundColor: '#f8f8f8',
-            borderRadius: '4px',
-            border: '1px solid #e0e0e0'
-          }}>
+          <label className="menu-checkbox">
             <input
               type="checkbox"
               checked={showGrid}
-              onChange={(e) => setShowGrid(e.target.checked)}
-              style={{ cursor: 'pointer' }}
+              onChange={(event) => setShowGrid(event.target.checked)}
             />
             <Grid3x3 size={14} />
             <span>Show Grid</span>
           </label>
 
-          {/* Undo/Redo */}
-          <div style={{ marginBottom: '10px' }}>
-            <div style={{ display: 'flex', gap: '3px', marginBottom: '3px' }}>
+          <section className="menu-section">
+            <div className="menu-button-group">
               <button
+                type="button"
+                className="menu-button"
                 onClick={undo}
                 disabled={!canUndo}
-                style={{
-                  flex: 1,
-                  padding: '6px 10px',
-                  backgroundColor: '#f8f8f8',
-                  color: '#555',
-                  border: '1px solid #e0e0e0',
-                  borderRadius: '4px',
-                  cursor: canUndo ? 'pointer' : 'not-allowed',
-                  fontSize: '11px',
-                  opacity: canUndo ? 1 : 0.4,
-                  fontWeight: '500',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '6px'
-                }}
               >
                 <Undo size={14} />
                 <span>Undo</span>
               </button>
               <button
+                type="button"
+                className="menu-button"
                 onClick={redo}
                 disabled={!canRedo}
-                style={{
-                  flex: 1,
-                  padding: '6px 10px',
-                  backgroundColor: '#f8f8f8',
-                  color: '#555',
-                  border: '1px solid #e0e0e0',
-                  borderRadius: '4px',
-                  cursor: canRedo ? 'pointer' : 'not-allowed',
-                  fontSize: '11px',
-                  opacity: canRedo ? 1 : 0.4,
-                  fontWeight: '500',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '6px'
-                }}
               >
                 <Redo size={14} />
                 <span>Redo</span>
               </button>
             </div>
-          </div>
+          </section>
 
-          {/* Copy/Paste */}
-          <div style={{ marginBottom: '10px' }}>
+          <section className="menu-section">
             <button
-              onClick={copySelection}
-              disabled={!selectionStart || !selectionEnd}
-              style={{
-                width: '100%',
-                padding: '6px 10px',
-                marginBottom: '3px',
-                backgroundColor: '#f8f8f8',
-                color: '#555',
-                border: '1px solid #e0e0e0',
-                borderRadius: '4px',
-                cursor: selectionStart && selectionEnd ? 'pointer' : 'not-allowed',
-                fontSize: '11px',
-                opacity: selectionStart && selectionEnd ? 1 : 0.4,
-                fontWeight: '500',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '6px'
-              }}
+              type="button"
+              className="menu-submenu__toggle"
+              onClick={() => setShowActions(!showActions)}
+              aria-expanded={showActions}
+              aria-controls="menu-actions-panel"
             >
-              <Copy size={14} />
-              <span>Copy (⌘C)</span>
-            </button>
-            <button
-              onClick={pasteSelection}
-              disabled={!clipboard}
-              style={{
-                width: '100%',
-                padding: '6px 10px',
-                backgroundColor: '#f8f8f8',
-                color: '#555',
-                border: '1px solid #e0e0e0',
-                borderRadius: '4px',
-                cursor: clipboard ? 'pointer' : 'not-allowed',
-                fontSize: '11px',
-                opacity: clipboard ? 1 : 0.4,
-                fontWeight: '500',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '6px'
-              }}
-            >
-              <ClipboardPaste size={14} />
-              <span>Paste (⌘V)</span>
-            </button>
-          </div>
-
-          {/* File Operations */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', marginBottom: '10px' }}>
-            <button
-              onClick={newCanvas}
-              style={{
-                width: '100%',
-                padding: '8px 12px',
-                backgroundColor: '#f8f8f8',
-                color: '#555',
-                border: '1px solid #e0e0e0',
-                borderRadius: '4px',
-                cursor: 'pointer',
-                fontSize: '12px',
-                fontWeight: '600',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '6px'
-              }}
-            >
-              <FilePlus size={14} />
-              <span>New Canvas</span>
-            </button>
-            <div style={{ display: 'flex', gap: '3px' }}>
-              <button
-                onClick={loadPNG}
+              <span>Actions</span>
+              <ChevronDown
+                size={14}
                 style={{
-                  flex: 1,
-                  padding: '8px 12px',
-                  backgroundColor: '#555',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '4px',
-                  cursor: 'pointer',
-                  fontSize: '12px',
-                  fontWeight: '600',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '6px'
+                  transform: showActions ? 'rotate(180deg)' : 'rotate(0deg)',
+                  transition: 'transform 0.15s ease',
                 }}
-              >
-                <Upload size={14} />
-                <span>Load</span>
-              </button>
-              <button
-                onClick={savePNG}
-                style={{
-                  flex: 1,
-                  padding: '8px 12px',
-                  backgroundColor: '#333',
-                  color: 'white',
-                  border: 'none',
-                  borderRadius: '4px',
-                  cursor: 'pointer',
-                  fontSize: '12px',
-                  fontWeight: '600',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '6px'
-                }}
-              >
-                <Save size={14} />
-                <span>Save</span>
-              </button>
-            </div>
-          </div>
+              />
+            </button>
+            {showActions && (
+              <div className="menu-submenu" id="menu-actions-panel">
+                <div className="menu-submenu__group">
+                  <button
+                    type="button"
+                    className="menu-button"
+                    onClick={copySelection}
+                    disabled={!selectionStart || !selectionEnd}
+                  >
+                    <Copy size={14} />
+                    <span>Copy (⌘C)</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="menu-button"
+                    onClick={pasteSelection}
+                    disabled={!clipboard}
+                  >
+                    <ClipboardPaste size={14} />
+                    <span>Paste (⌘V)</span>
+                  </button>
+                </div>
+                <div className="menu-submenu__group">
+                  <button
+                    type="button"
+                    className="menu-button menu-button--ghost"
+                    onClick={newCanvas}
+                  >
+                    <FilePlus size={14} />
+                    <span>New Canvas</span>
+                  </button>
+                  <div className="menu-button-group">
+                    <button
+                      type="button"
+                      className="menu-button"
+                      onClick={loadPNG}
+                    >
+                      <Upload size={14} />
+                      <span>Load</span>
+                    </button>
+                    <button
+                      type="button"
+                      className="menu-button menu-button--primary"
+                      onClick={savePNG}
+                    >
+                      <Save size={14} />
+                      <span>Save</span>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+          </section>
         </div>
       )}
     </div>
