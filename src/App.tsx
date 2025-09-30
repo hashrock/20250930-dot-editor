@@ -72,7 +72,7 @@ function App() {
   const [currentColor, setCurrentColor] = useState('#000000');
   const [colorPalette, setColorPalette] = useState<string[]>(['#000000', '#ffffff', '#ff0000', '#00ff00', '#0000ff']);
   const [isDrawing, setIsDrawing] = useState(false);
-  const [showGrid, setShowGrid] = useState(true);
+  const [showGrid, setShowGrid] = useState(false);
   const [scale, setScale] = useState(1);
   const [position, setPosition] = useState({ x: 0, y: 0 });
   const [brushSize, setBrushSize] = useState(1);
@@ -704,8 +704,8 @@ function App() {
                 width={PIXEL_SIZE}
                 height={PIXEL_SIZE}
                 fill={color === TRANSPARENT ? undefined : color}
-                stroke={showGrid ? '#e0e0e0' : undefined}
-                strokeWidth={showGrid ? 0.3 : 0}
+                stroke={color === TRANSPARENT ? undefined : color}
+                strokeWidth={0.5}
               />
             ))
           )}
