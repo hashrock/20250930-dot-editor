@@ -1,4 +1,5 @@
-import { Paintbrush, Eraser, PaintBucket, Square, Menu as MenuIcon, Copy, ClipboardPaste, Save, Grid3x3, Plus, Undo, Redo, Upload } from 'lucide-react';
+import React from 'react';
+import { Paintbrush, Eraser, PaintBucket, Square, Menu as MenuIcon, Copy, ClipboardPaste, Save, Grid3x3, Plus, Undo, Redo, Upload, FilePlus, X } from 'lucide-react';
 import type { Tool } from '../types';
 import {TRANSPARENT} from '../types';
 
@@ -10,6 +11,7 @@ interface MenuProps {
   currentColor: string;
   setCurrentColor: (color: string) => void;
   colorPalette: string[];
+  setColorPalette: (palette: string[]) => void;
   addColorToPalette: () => void;
   removeColorFromPalette: (color: string) => void;
   brushSize: number;
@@ -25,6 +27,7 @@ interface MenuProps {
   undo: () => void;
   redo: () => void;
   loadPNG: () => void;
+  newCanvas: () => void;
   canUndo: boolean;
   canRedo: boolean;
 }
@@ -44,6 +47,7 @@ export function Menu({
   currentColor,
   setCurrentColor,
   colorPalette,
+  setColorPalette,
   addColorToPalette,
   removeColorFromPalette,
   brushSize,
@@ -59,9 +63,32 @@ export function Menu({
   undo,
   redo,
   loadPNG,
+  newCanvas,
   canUndo,
   canRedo
 }: MenuProps) {
+  const [draggedIndex, setDraggedIndex] = React.useState<number | null>(null);
+  const [hoveredIndex, setHoveredIndex] = React.useState<number | null>(null);
+
+  const handleDragStart = (index: number) => {
+    setDraggedIndex(index);
+  };
+
+  const handleDragOver = (e: React.DragEvent, index: number) => {
+    e.preventDefault();
+    if (draggedIndex === null || draggedIndex === index) return;
+
+    const newPalette = [...colorPalette];
+    const [draggedColor] = newPalette.splice(draggedIndex, 1);
+    newPalette.splice(index, 0, draggedColor);
+    setColorPalette(newPalette);
+    setDraggedIndex(index);
+  };
+
+  const handleDragEnd = () => {
+    setDraggedIndex(null);
+  };
+
   return (
     <div style={{
       position: 'absolute',
@@ -162,29 +189,61 @@ export function Menu({
             <label style={{ display: 'block', fontSize: '11px', color: '#888', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
               Palette
             </label>
-            <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', marginBottom: '4px' }}>
+            <div style={{ display: 'flex', gap: '3px', flexWrap: 'wrap', marginBottom: '4px', maxHeight: '120px', overflowY: 'auto' }}>
               {colorPalette.map((color, idx) => (
                 <div
                   key={idx}
+                  draggable
+                  onDragStart={() => handleDragStart(idx)}
+                  onDragOver={(e) => handleDragOver(e, idx)}
+                  onDragEnd={handleDragEnd}
+                  onMouseEnter={() => setHoveredIndex(idx)}
+                  onMouseLeave={() => setHoveredIndex(null)}
                   style={{
                     position: 'relative',
-                    width: '26px',
-                    height: '26px',
+                    width: '24px',
+                    height: '24px',
                     backgroundColor: color,
                     border: currentColor === color ? '2px solid #333' : '1px solid #ddd',
                     borderRadius: '3px',
-                    cursor: 'pointer',
+                    cursor: draggedIndex === idx ? 'grabbing' : 'grab',
                     backgroundImage: color === TRANSPARENT ? 'linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%, #ccc), linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%, #ccc)' : 'none',
                     backgroundSize: color === TRANSPARENT ? '8px 8px' : 'auto',
                     backgroundPosition: color === TRANSPARENT ? '0 0, 4px 4px' : 'auto',
-                    transition: 'all 0.15s'
+                    transition: 'all 0.15s',
+                    opacity: draggedIndex === idx ? 0.5 : 1
                   }}
                   onClick={() => setCurrentColor(color)}
-                  onContextMenu={(e) => {
-                    e.preventDefault();
-                    removeColorFromPalette(color);
-                  }}
-                />
+                >
+                  {hoveredIndex === idx && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        removeColorFromPalette(color);
+                      }}
+                      style={{
+                        position: 'absolute',
+                        top: '-4px',
+                        right: '-4px',
+                        width: '12px',
+                        height: '12px',
+                        borderRadius: '50%',
+                        border: 'none',
+                        backgroundColor: '#ff4444',
+                        color: 'white',
+                        cursor: 'pointer',
+                        fontSize: '8px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        padding: 0,
+                        lineHeight: 1
+                      }}
+                    >
+                      <X size={8} />
+                    </button>
+                  )}
+                </div>
               ))}
             </div>
             <button
@@ -207,9 +266,15 @@ export function Menu({
 
           {/* Brush Size */}
           <div style={{ marginBottom: '10px' }}>
-            <label style={{ display: 'flex', justifyContent: 'space-between', fontSize: '11px', color: '#888', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+            <label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '11px', color: '#888', marginBottom: '4px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
               <span>Brush Size</span>
-              <span style={{ color: '#333', fontWeight: '600' }}>{brushSize}</span>
+              <div style={{
+                width: `${brushSize * 3}px`,
+                height: `${brushSize * 3}px`,
+                backgroundColor: '#333',
+                borderRadius: brushSize === 1 ? '0' : '50%',
+                border: '1px solid #ddd'
+              }} />
             </label>
             <input
               type="range"
@@ -348,16 +413,16 @@ export function Menu({
             </button>
           </div>
 
-          {/* Load/Save */}
-          <div style={{ display: 'flex', gap: '3px', marginBottom: '10px' }}>
+          {/* File Operations */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '3px', marginBottom: '10px' }}>
             <button
-              onClick={loadPNG}
+              onClick={newCanvas}
               style={{
-                flex: 1,
+                width: '100%',
                 padding: '8px 12px',
-                backgroundColor: '#555',
-                color: 'white',
-                border: 'none',
+                backgroundColor: '#f8f8f8',
+                color: '#555',
+                border: '1px solid #e0e0e0',
                 borderRadius: '4px',
                 cursor: 'pointer',
                 fontSize: '12px',
@@ -368,43 +433,53 @@ export function Menu({
                 gap: '6px'
               }}
             >
-              <Upload size={14} />
-              <span>Load</span>
+              <FilePlus size={14} />
+              <span>New Canvas</span>
             </button>
-            <button
-              onClick={savePNG}
-              style={{
-                flex: 1,
-                padding: '8px 12px',
-                backgroundColor: '#333',
-                color: 'white',
-                border: 'none',
-                borderRadius: '4px',
-                cursor: 'pointer',
-                fontSize: '12px',
-                fontWeight: '600',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '6px'
-              }}
-            >
-              <Save size={14} />
-              <span>Save</span>
-            </button>
-          </div>
-
-          {/* Help */}
-          <div style={{
-            marginTop: '10px',
-            paddingTop: '10px',
-            borderTop: '1px solid #e8e8e8',
-            fontSize: '10px',
-            color: '#999',
-            lineHeight: '1.6'
-          }}>
-            Left: Draw | Right: Pick<br/>
-            Wheel: Zoom | Middle: Pan
+            <div style={{ display: 'flex', gap: '3px' }}>
+              <button
+                onClick={loadPNG}
+                style={{
+                  flex: 1,
+                  padding: '8px 12px',
+                  backgroundColor: '#555',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontSize: '12px',
+                  fontWeight: '600',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px'
+                }}
+              >
+                <Upload size={14} />
+                <span>Load</span>
+              </button>
+              <button
+                onClick={savePNG}
+                style={{
+                  flex: 1,
+                  padding: '8px 12px',
+                  backgroundColor: '#333',
+                  color: 'white',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontSize: '12px',
+                  fontWeight: '600',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '6px'
+                }}
+              >
+                <Save size={14} />
+                <span>Save</span>
+              </button>
+            </div>
           </div>
         </div>
       )}

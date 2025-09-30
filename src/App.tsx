@@ -14,7 +14,17 @@ function App() {
   const [history, setHistory] = useState<string[][][]>([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
   const [currentColor, setCurrentColor] = useState('#000000');
-  const [colorPalette, setColorPalette] = useState<string[]>(['#000000', '#ffffff', '#ff0000', '#00ff00', '#0000ff']);
+  const [colorPalette, setColorPalette] = useState<string[]>([
+    // Transparent first
+    TRANSPARENT,
+    // Grayscale
+    '#000000', '#1a1a1a', '#333333', '#4d4d4d', '#666666', '#808080', '#999999', '#b3b3b3',
+    '#cccccc', '#e6e6e6', '#f5f5f5', '#ffffff',
+    // Rich colors
+    '#8B0000', '#FF4500', '#FFD700', '#228B22', '#4169E1', '#8B008B', '#D2691E', '#2F4F4F',
+    '#DC143C', '#FF8C00', '#32CD32', '#00CED1', '#9370DB', '#FF1493', '#8B4513', '#556B2F',
+    '#C71585', '#FF6347', '#7CFC00', '#1E90FF', '#BA55D3', '#CD5C5C', '#DAA520', '#2E8B57'
+  ]);
   const [isDrawing, setIsDrawing] = useState(false);
   const [showGrid, setShowGrid] = useState(false);
   const [scale, setScale] = useState(1);
@@ -139,9 +149,7 @@ function App() {
       const coords = getPixelCoordinates(e);
       if (coords) {
         const color = pixels[coords.y][coords.x];
-        if (color !== TRANSPARENT) {
-          setCurrentColor(color);
-        }
+        setCurrentColor(color); // Allow picking transparent color too
       }
     }
   };
@@ -341,6 +349,17 @@ function App() {
     setColorPalette(colorPalette.filter(c => c !== color));
   };
 
+  const newCanvas = useCallback(() => {
+    const newPixels = Array(CANVAS_SIZE).fill(null).map(() => Array(CANVAS_SIZE).fill(TRANSPARENT));
+    setCanvasSize(CANVAS_SIZE);
+    setPixels(newPixels);
+    setHistory([]);
+    setHistoryIndex(-1);
+    setSelectionStart(null);
+    setSelectionEnd(null);
+    setClipboard(null);
+  }, []);
+
   const undo = useCallback(() => {
     if (historyIndex > 0) {
       setHistoryIndex(historyIndex - 1);
@@ -358,6 +377,34 @@ function App() {
   const loadPNG = useCallback(() => {
     fileInputRef.current?.click();
   }, []);
+
+  const extractPalette = (imageData: ImageData, width: number, height: number): string[] => {
+    const colorMap = new Map<string, number>();
+
+    // Count all unique colors
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const i = (y * width + x) * 4;
+        const r = imageData.data[i];
+        const g = imageData.data[i + 1];
+        const b = imageData.data[i + 2];
+        const a = imageData.data[i + 3];
+
+        if (a > 128) { // Only count opaque pixels
+          const hex = '#' + [r, g, b].map(v => v.toString(16).padStart(2, '0')).join('');
+          colorMap.set(hex, (colorMap.get(hex) || 0) + 1);
+        }
+      }
+    }
+
+    // Sort by frequency and take top colors
+    const sortedColors = Array.from(colorMap.entries())
+      .sort((a, b) => b[1] - a[1])
+      .map(([color]) => color)
+      .slice(0, 16); // Take top 16 colors
+
+    return sortedColors;
+  };
 
   const handleFileLoad = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -393,6 +440,10 @@ function App() {
             }
           }
         }
+
+        // Extract and set palette
+        const palette = extractPalette(imageData, img.width, img.height);
+        setColorPalette(palette);
 
         // Update canvas size to match image
         setCanvasSize(Math.max(img.width, img.height));
@@ -489,10 +540,6 @@ function App() {
         if (color !== TRANSPARENT) {
           ctx.fillStyle = color;
           ctx.fillRect(x * PIXEL_SIZE, y * PIXEL_SIZE, PIXEL_SIZE, PIXEL_SIZE);
-          // Add subtle border
-          ctx.strokeStyle = color;
-          ctx.lineWidth = 0.5;
-          ctx.strokeRect(x * PIXEL_SIZE, y * PIXEL_SIZE, PIXEL_SIZE, PIXEL_SIZE);
         }
       });
     });
@@ -526,6 +573,7 @@ function App() {
         currentColor={currentColor}
         setCurrentColor={setCurrentColor}
         colorPalette={colorPalette}
+        setColorPalette={setColorPalette}
         addColorToPalette={addColorToPalette}
         removeColorFromPalette={removeColorFromPalette}
         brushSize={brushSize}
@@ -541,6 +589,7 @@ function App() {
         undo={undo}
         redo={redo}
         loadPNG={loadPNG}
+        newCanvas={newCanvas}
         canUndo={historyIndex > 0}
         canRedo={historyIndex < history.length - 1}
       />
@@ -572,19 +621,22 @@ function App() {
         onContextMenu={handleContextMenu}
         onWheel={handleWheel}
         ref={stageRef}
-        style={{ cursor: isPanning.current ? 'grabbing' : 'crosshair' }}
+        style={{
+          cursor: isPanning.current ? 'grabbing' : 'crosshair',
+          imageRendering: 'pixelated'
+        }}
       >
         <Layer
           x={position.x}
           y={position.y}
           scaleX={scale}
           scaleY={scale}
+          imageSmoothingEnabled={false}
         >
           {canvasImage && (
             <KonvaImage
               image={canvasImage}
               listening={false}
-              imageSmoothingEnabled={false}
             />
           )}
 
