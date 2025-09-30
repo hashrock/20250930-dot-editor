@@ -4,19 +4,93 @@ import Konva from 'konva';
 
 const CANVAS_SIZE = 32;
 const PIXEL_SIZE = 16;
+const TRANSPARENT = 'transparent';
+
+type Tool = 'brush' | 'eraser' | 'fill' | 'select';
+
+// Bresenham's line algorithm
+function bresenhamLine(x0: number, y0: number, x1: number, y1: number): Array<{x: number, y: number}> {
+  const points: Array<{x: number, y: number}> = [];
+  const dx = Math.abs(x1 - x0);
+  const dy = Math.abs(y1 - y0);
+  const sx = x0 < x1 ? 1 : -1;
+  const sy = y0 < y1 ? 1 : -1;
+  let err = dx - dy;
+
+  let x = x0;
+  let y = y0;
+
+  while (true) {
+    points.push({ x, y });
+
+    if (x === x1 && y === y1) break;
+
+    const e2 = 2 * err;
+    if (e2 > -dy) {
+      err -= dy;
+      x += sx;
+    }
+    if (e2 < dx) {
+      err += dx;
+      y += sy;
+    }
+  }
+
+  return points;
+}
+
+// Flood fill algorithm
+function floodFill(pixels: string[][], x: number, y: number, targetColor: string, replacementColor: string): string[][] {
+  if (targetColor === replacementColor) return pixels;
+  if (x < 0 || x >= CANVAS_SIZE || y < 0 || y >= CANVAS_SIZE) return pixels;
+  if (pixels[y][x] !== targetColor) return pixels;
+
+  const newPixels = pixels.map(row => [...row]);
+  const stack: Array<{x: number, y: number}> = [{x, y}];
+
+  while (stack.length > 0) {
+    const {x: cx, y: cy} = stack.pop()!;
+    if (cx < 0 || cx >= CANVAS_SIZE || cy < 0 || cy >= CANVAS_SIZE) continue;
+    if (newPixels[cy][cx] !== targetColor) continue;
+
+    newPixels[cy][cx] = replacementColor;
+
+    stack.push({x: cx + 1, y: cy});
+    stack.push({x: cx - 1, y: cy});
+    stack.push({x: cx, y: cy + 1});
+    stack.push({x: cx, y: cy - 1});
+  }
+
+  return newPixels;
+}
 
 function App() {
   const [pixels, setPixels] = useState<string[][]>(() =>
-    Array(CANVAS_SIZE).fill(null).map(() => Array(CANVAS_SIZE).fill('#ffffff'))
+    Array(CANVAS_SIZE).fill(null).map(() => Array(CANVAS_SIZE).fill(TRANSPARENT))
   );
   const [currentColor, setCurrentColor] = useState('#000000');
+  const [colorPalette, setColorPalette] = useState<string[]>(['#000000', '#ffffff', '#ff0000', '#00ff00', '#0000ff']);
   const [isDrawing, setIsDrawing] = useState(false);
   const [showGrid, setShowGrid] = useState(true);
   const [scale, setScale] = useState(1);
   const [position, setPosition] = useState({ x: 0, y: 0 });
+  const [brushSize, setBrushSize] = useState(1);
+  const [showMenu, setShowMenu] = useState(false);
+  const [currentTool, setCurrentTool] = useState<Tool>('brush');
+  const [selectionStart, setSelectionStart] = useState<{x: number, y: number} | null>(null);
+  const [selectionEnd, setSelectionEnd] = useState<{x: number, y: number} | null>(null);
+  const [clipboard, setClipboard] = useState<string[][] | null>(null);
   const stageRef = useRef<Konva.Stage>(null);
   const isPanning = useRef(false);
   const lastPos = useRef({ x: 0, y: 0 });
+  const lastDrawPos = useRef<{x: number, y: number} | null>(null);
+
+  // Center canvas on mount
+  useEffect(() => {
+    const centerX = (window.innerWidth - CANVAS_SIZE * PIXEL_SIZE) / 2;
+    const centerY = (window.innerHeight - CANVAS_SIZE * PIXEL_SIZE) / 2;
+    setPosition({ x: centerX, y: centerY });
+  }, []);
 
   const getPixelCoordinates = (e: Konva.KonvaEventObject<MouseEvent | TouchEvent>) => {
     const stage = e.target.getStage();
@@ -34,8 +108,27 @@ function App() {
     return null;
   };
 
+  const drawPixel = (x: number, y: number, newPixels: string[][], color: string) => {
+    if (brushSize === 1) {
+      newPixels[y][x] = color;
+    } else {
+      const radius = Math.floor(brushSize / 2);
+      for (let dy = -radius; dy <= radius; dy++) {
+        for (let dx = -radius; dx <= radius; dx++) {
+          const px = x + dx;
+          const py = y + dy;
+          if (px >= 0 && px < CANVAS_SIZE && py >= 0 && py < CANVAS_SIZE) {
+            if (dx * dx + dy * dy <= radius * radius + radius) {
+              newPixels[py][px] = color;
+            }
+          }
+        }
+      }
+    }
+  };
+
   const handleMouseDown = (e: Konva.KonvaEventObject<MouseEvent>) => {
-    if (e.evt.button === 1 || e.evt.button === 2) {
+    if (e.evt.button === 1 || (e.evt.button === 2 && currentTool !== 'brush' && currentTool !== 'eraser')) {
       e.evt.preventDefault();
       isPanning.current = true;
       const stage = e.target.getStage();
@@ -50,11 +143,35 @@ function App() {
 
     if (e.evt.button === 0) {
       const coords = getPixelCoordinates(e);
-      if (coords) {
-        setIsDrawing(true);
-        const newPixels = [...pixels];
-        newPixels[coords.y][coords.x] = currentColor;
+      if (!coords) return;
+
+      if (currentTool === 'fill') {
+        const targetColor = pixels[coords.y][coords.x];
+        const newPixels = floodFill(pixels, coords.x, coords.y, targetColor, currentColor);
         setPixels(newPixels);
+      } else if (currentTool === 'select') {
+        setSelectionStart(coords);
+        setSelectionEnd(coords);
+        setIsDrawing(true);
+      } else {
+        setIsDrawing(true);
+        const newPixels = pixels.map(row => [...row]);
+        const color = currentTool === 'eraser' ? TRANSPARENT : currentColor;
+        drawPixel(coords.x, coords.y, newPixels, color);
+        setPixels(newPixels);
+        lastDrawPos.current = coords;
+      }
+    }
+
+    // Right click for eyedropper
+    if (e.evt.button === 2 && (currentTool === 'brush' || currentTool === 'eraser')) {
+      e.evt.preventDefault();
+      const coords = getPixelCoordinates(e);
+      if (coords) {
+        const color = pixels[coords.y][coords.x];
+        if (color !== TRANSPARENT) {
+          setCurrentColor(color);
+        }
       }
     }
   };
@@ -79,10 +196,28 @@ function App() {
 
     if (isDrawing) {
       const coords = getPixelCoordinates(e);
-      if (coords) {
-        const newPixels = [...pixels];
-        newPixels[coords.y][coords.x] = currentColor;
+      if (!coords) return;
+
+      if (currentTool === 'select') {
+        setSelectionEnd(coords);
+      } else if (lastDrawPos.current) {
+        const newPixels = pixels.map(row => [...row]);
+        const color = currentTool === 'eraser' ? TRANSPARENT : currentColor;
+
+        // Bresenham line interpolation
+        const line = bresenhamLine(
+          lastDrawPos.current.x,
+          lastDrawPos.current.y,
+          coords.x,
+          coords.y
+        );
+
+        line.forEach(point => {
+          drawPixel(point.x, point.y, newPixels, color);
+        });
+
         setPixels(newPixels);
+        lastDrawPos.current = coords;
       }
     }
   };
@@ -90,15 +225,11 @@ function App() {
   const handleMouseUp = () => {
     setIsDrawing(false);
     isPanning.current = false;
+    lastDrawPos.current = null;
   };
 
   const handleContextMenu = (e: Konva.KonvaEventObject<PointerEvent>) => {
     e.evt.preventDefault();
-    const coords = getPixelCoordinates(e);
-    if (coords) {
-      const color = pixels[coords.y][coords.x];
-      setCurrentColor(color);
-    }
   };
 
   const handleWheel = (e: Konva.KonvaEventObject<WheelEvent>) => {
@@ -135,8 +266,10 @@ function App() {
 
     pixels.forEach((row, y) => {
       row.forEach((color, x) => {
-        ctx.fillStyle = color;
-        ctx.fillRect(x, y, 1, 1);
+        if (color !== TRANSPARENT) {
+          ctx.fillStyle = color;
+          ctx.fillRect(x, y, 1, 1);
+        }
       });
     });
 
@@ -149,129 +282,436 @@ function App() {
         a.click();
         URL.revokeObjectURL(url);
       }
+    }, 'image/png');
+  };
+
+  const copySelection = () => {
+    if (!selectionStart || !selectionEnd) return;
+
+    const minX = Math.min(selectionStart.x, selectionEnd.x);
+    const maxX = Math.max(selectionStart.x, selectionEnd.x);
+    const minY = Math.min(selectionStart.y, selectionEnd.y);
+    const maxY = Math.max(selectionStart.y, selectionEnd.y);
+
+    const selection: string[][] = [];
+    for (let y = minY; y <= maxY; y++) {
+      const row: string[] = [];
+      for (let x = minX; x <= maxX; x++) {
+        row.push(pixels[y][x]);
+      }
+      selection.push(row);
+    }
+
+    setClipboard(selection);
+  };
+
+  const pasteSelection = () => {
+    if (!clipboard || !selectionStart) return;
+
+    const newPixels = pixels.map(row => [...row]);
+    clipboard.forEach((row, dy) => {
+      row.forEach((color, dx) => {
+        const x = selectionStart.x + dx;
+        const y = selectionStart.y + dy;
+        if (x >= 0 && x < CANVAS_SIZE && y >= 0 && y < CANVAS_SIZE) {
+          newPixels[y][x] = color;
+        }
+      });
     });
+
+    setPixels(newPixels);
+  };
+
+  const addColorToPalette = () => {
+    if (!colorPalette.includes(currentColor)) {
+      setColorPalette([...colorPalette, currentColor]);
+    }
+  };
+
+  const removeColorFromPalette = (color: string) => {
+    setColorPalette(colorPalette.filter(c => c !== color));
   };
 
   useEffect(() => {
     const handleGlobalContextMenu = (e: MouseEvent) => {
       e.preventDefault();
     };
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === 'c') {
+        e.preventDefault();
+        copySelection();
+      }
+      if ((e.ctrlKey || e.metaKey) && e.key === 'v') {
+        e.preventDefault();
+        pasteSelection();
+      }
+    };
+
     document.addEventListener('contextmenu', handleGlobalContextMenu);
-    return () => document.removeEventListener('contextmenu', handleGlobalContextMenu);
-  }, []);
+    document.addEventListener('keydown', handleKeyDown);
+    return () => {
+      document.removeEventListener('contextmenu', handleGlobalContextMenu);
+      document.removeEventListener('keydown', handleKeyDown);
+    };
+  }, [selectionStart, selectionEnd, clipboard, pixels]);
+
+  const getSelectionRect = () => {
+    if (!selectionStart || !selectionEnd) return null;
+
+    const minX = Math.min(selectionStart.x, selectionEnd.x);
+    const maxX = Math.max(selectionStart.x, selectionEnd.x);
+    const minY = Math.min(selectionStart.y, selectionEnd.y);
+    const maxY = Math.max(selectionStart.y, selectionEnd.y);
+
+    return {
+      x: minX * PIXEL_SIZE,
+      y: minY * PIXEL_SIZE,
+      width: (maxX - minX + 1) * PIXEL_SIZE,
+      height: (maxY - minY + 1) * PIXEL_SIZE
+    };
+  };
 
   return (
     <div style={{
       width: '100vw',
       height: '100vh',
-      display: 'flex',
-      flexDirection: 'column',
-      backgroundColor: '#f5f5f5'
+      backgroundColor: '#e8e8e8',
+      position: 'relative'
     }}>
+      {/* Floating Menu Button */}
       <div style={{
-        padding: '8px 16px',
-        backgroundColor: '#ffffff',
-        borderBottom: '1px solid #e0e0e0',
-        display: 'flex',
-        alignItems: 'center',
-        gap: '16px',
-        boxShadow: '0 1px 3px rgba(0,0,0,0.1)'
+        position: 'absolute',
+        top: '16px',
+        left: '16px',
+        zIndex: 1000
       }}>
-        <h1 style={{ margin: 0, fontSize: '18px', fontWeight: '600', color: '#333' }}>Dot Editor</h1>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <label style={{ fontSize: '14px', color: '#666' }}>Color:</label>
-          <input
-            type="color"
-            value={currentColor}
-            onChange={(e) => setCurrentColor(e.target.value)}
-            style={{ width: '40px', height: '32px', border: '1px solid #ccc', borderRadius: '4px', cursor: 'pointer' }}
-          />
-        </div>
-        <label style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '14px', color: '#666', cursor: 'pointer' }}>
-          <input
-            type="checkbox"
-            checked={showGrid}
-            onChange={(e) => setShowGrid(e.target.checked)}
-            style={{ cursor: 'pointer' }}
-          />
-          Show Grid
-        </label>
         <button
-          onClick={savePNG}
+          onClick={() => setShowMenu(!showMenu)}
           style={{
-            padding: '6px 16px',
-            backgroundColor: '#333',
-            color: 'white',
-            border: 'none',
-            borderRadius: '4px',
+            padding: '10px 16px',
+            backgroundColor: 'rgba(255, 255, 255, 0.95)',
+            border: '1px solid #ccc',
+            borderRadius: '8px',
             cursor: 'pointer',
             fontSize: '14px',
-            fontWeight: '500'
+            fontWeight: '500',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+            color: '#333'
           }}
         >
-          Save PNG
+          ☰ Menu
         </button>
-        <div style={{ marginLeft: 'auto', fontSize: '12px', color: '#999' }}>
-          Zoom: {(scale * 100).toFixed(0)}% | Left-click: Draw | Right-click: Pick color | Middle-click: Pan | Wheel: Zoom
-        </div>
+
+        {showMenu && (
+          <div style={{
+            marginTop: '8px',
+            padding: '12px',
+            backgroundColor: 'rgba(255, 255, 255, 0.95)',
+            border: '1px solid #ccc',
+            borderRadius: '8px',
+            boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+            minWidth: '220px',
+            maxHeight: '80vh',
+            overflowY: 'auto'
+          }}>
+            <div style={{ marginBottom: '12px' }}>
+              <label style={{ display: 'block', fontSize: '12px', color: '#666', marginBottom: '4px' }}>
+                Tool
+              </label>
+              <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                {(['brush', 'eraser', 'fill', 'select'] as Tool[]).map(tool => (
+                  <button
+                    key={tool}
+                    onClick={() => setCurrentTool(tool)}
+                    style={{
+                      padding: '6px 12px',
+                      backgroundColor: currentTool === tool ? '#333' : '#f5f5f5',
+                      color: currentTool === tool ? 'white' : '#333',
+                      border: '1px solid #ccc',
+                      borderRadius: '4px',
+                      cursor: 'pointer',
+                      fontSize: '12px',
+                      textTransform: 'capitalize'
+                    }}
+                  >
+                    {tool}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div style={{ marginBottom: '12px' }}>
+              <label style={{ display: 'block', fontSize: '12px', color: '#666', marginBottom: '4px' }}>
+                Color
+              </label>
+              <input
+                type="color"
+                value={currentColor}
+                onChange={(e) => setCurrentColor(e.target.value)}
+                style={{ width: '100%', height: '32px', border: '1px solid #ccc', borderRadius: '4px', cursor: 'pointer' }}
+              />
+            </div>
+
+            <div style={{ marginBottom: '12px' }}>
+              <label style={{ display: 'block', fontSize: '12px', color: '#666', marginBottom: '4px' }}>
+                Palette
+              </label>
+              <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap', marginBottom: '6px' }}>
+                {colorPalette.map((color, idx) => (
+                  <div
+                    key={idx}
+                    style={{
+                      position: 'relative',
+                      width: '28px',
+                      height: '28px',
+                      backgroundColor: color,
+                      border: currentColor === color ? '2px solid #333' : '1px solid #ccc',
+                      borderRadius: '4px',
+                      cursor: 'pointer',
+                      backgroundImage: color === TRANSPARENT ? 'linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%, #ccc), linear-gradient(45deg, #ccc 25%, transparent 25%, transparent 75%, #ccc 75%, #ccc)' : 'none',
+                      backgroundSize: color === TRANSPARENT ? '8px 8px' : 'auto',
+                      backgroundPosition: color === TRANSPARENT ? '0 0, 4px 4px' : 'auto'
+                    }}
+                    onClick={() => setCurrentColor(color)}
+                    onContextMenu={(e) => {
+                      e.preventDefault();
+                      removeColorFromPalette(color);
+                    }}
+                  />
+                ))}
+              </div>
+              <button
+                onClick={addColorToPalette}
+                style={{
+                  padding: '4px 8px',
+                  backgroundColor: '#f5f5f5',
+                  border: '1px solid #ccc',
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  fontSize: '11px',
+                  width: '100%'
+                }}
+              >
+                Add Current Color
+              </button>
+            </div>
+
+            <div style={{ marginBottom: '12px' }}>
+              <label style={{ display: 'block', fontSize: '12px', color: '#666', marginBottom: '4px' }}>
+                Brush Size: {brushSize}
+              </label>
+              <input
+                type="range"
+                min="1"
+                max="10"
+                value={brushSize}
+                onChange={(e) => setBrushSize(Number(e.target.value))}
+                style={{ width: '100%' }}
+              />
+            </div>
+
+            <label style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '6px',
+              fontSize: '14px',
+              color: '#666',
+              cursor: 'pointer',
+              marginBottom: '12px'
+            }}>
+              <input
+                type="checkbox"
+                checked={showGrid}
+                onChange={(e) => setShowGrid(e.target.checked)}
+                style={{ cursor: 'pointer' }}
+              />
+              Show Grid
+            </label>
+
+            <div style={{ marginBottom: '12px' }}>
+              <button
+                onClick={copySelection}
+                disabled={!selectionStart || !selectionEnd}
+                style={{
+                  width: '100%',
+                  padding: '6px 12px',
+                  marginBottom: '4px',
+                  backgroundColor: '#f5f5f5',
+                  color: '#333',
+                  border: '1px solid #ccc',
+                  borderRadius: '4px',
+                  cursor: selectionStart && selectionEnd ? 'pointer' : 'not-allowed',
+                  fontSize: '12px',
+                  opacity: selectionStart && selectionEnd ? 1 : 0.5
+                }}
+              >
+                Copy (Ctrl+C)
+              </button>
+              <button
+                onClick={pasteSelection}
+                disabled={!clipboard}
+                style={{
+                  width: '100%',
+                  padding: '6px 12px',
+                  backgroundColor: '#f5f5f5',
+                  color: '#333',
+                  border: '1px solid #ccc',
+                  borderRadius: '4px',
+                  cursor: clipboard ? 'pointer' : 'not-allowed',
+                  fontSize: '12px',
+                  opacity: clipboard ? 1 : 0.5
+                }}
+              >
+                Paste (Ctrl+V)
+              </button>
+            </div>
+
+            <button
+              onClick={savePNG}
+              style={{
+                width: '100%',
+                padding: '8px 16px',
+                backgroundColor: '#333',
+                color: 'white',
+                border: 'none',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                fontSize: '14px',
+                fontWeight: '500'
+              }}
+            >
+              Save PNG
+            </button>
+
+            <div style={{
+              marginTop: '12px',
+              paddingTop: '12px',
+              borderTop: '1px solid #e0e0e0',
+              fontSize: '11px',
+              color: '#999',
+              lineHeight: '1.5'
+            }}>
+              Left: Draw<br/>
+              Right: Pick (brush/eraser)<br/>
+              Wheel: Zoom<br/>
+              Middle: Pan<br/>
+              Ctrl+C/V: Copy/Paste
+            </div>
+          </div>
+        )}
       </div>
 
-      <div style={{ flex: 1, overflow: 'hidden', backgroundColor: '#e8e8e8' }}>
-        <Stage
-          width={window.innerWidth}
-          height={window.innerHeight - 56}
-          onMouseDown={handleMouseDown}
-          onMouseMove={handleMouseMove}
-          onMouseUp={handleMouseUp}
-          onContextMenu={handleContextMenu}
-          onWheel={handleWheel}
-          ref={stageRef}
-          style={{ cursor: isPanning.current ? 'grabbing' : 'crosshair' }}
+      {/* Zoom indicator */}
+      <div style={{
+        position: 'absolute',
+        bottom: '16px',
+        right: '16px',
+        padding: '6px 12px',
+        backgroundColor: 'rgba(255, 255, 255, 0.9)',
+        border: '1px solid #ccc',
+        borderRadius: '6px',
+        fontSize: '12px',
+        color: '#666',
+        boxShadow: '0 2px 6px rgba(0,0,0,0.1)',
+        zIndex: 1000
+      }}>
+        {(scale * 100).toFixed(0)}%
+      </div>
+
+      <Stage
+        width={window.innerWidth}
+        height={window.innerHeight}
+        onMouseDown={handleMouseDown}
+        onMouseMove={handleMouseMove}
+        onMouseUp={handleMouseUp}
+        onContextMenu={handleContextMenu}
+        onWheel={handleWheel}
+        ref={stageRef}
+        style={{ cursor: isPanning.current ? 'grabbing' : 'crosshair' }}
+      >
+        <Layer
+          x={position.x}
+          y={position.y}
+          scaleX={scale}
+          scaleY={scale}
         >
-          <Layer
-            x={position.x}
-            y={position.y}
-            scaleX={scale}
-            scaleY={scale}
-          >
-            {pixels.map((row, y) =>
-              row.map((color, x) => (
-                <Rect
-                  key={`${x}-${y}`}
-                  x={x * PIXEL_SIZE}
-                  y={y * PIXEL_SIZE}
-                  width={PIXEL_SIZE}
-                  height={PIXEL_SIZE}
-                  fill={color}
-                  stroke={showGrid ? '#cccccc' : undefined}
-                  strokeWidth={showGrid ? 0.5 : 0}
-                />
-              ))
-            )}
+          {pixels.map((row, y) =>
+            row.map((color, x) => (
+              <Rect
+                key={`${x}-${y}`}
+                x={x * PIXEL_SIZE}
+                y={y * PIXEL_SIZE}
+                width={PIXEL_SIZE}
+                height={PIXEL_SIZE}
+                fill={color === TRANSPARENT ? undefined : color}
+                stroke={showGrid ? '#e0e0e0' : undefined}
+                strokeWidth={showGrid ? 0.3 : 0}
+              />
+            ))
+          )}
 
-            {showGrid && (
-              <>
-                {Array.from({ length: CANVAS_SIZE + 1 }).map((_, i) => (
-                  <Line
-                    key={`v-${i}`}
-                    points={[i * PIXEL_SIZE, 0, i * PIXEL_SIZE, CANVAS_SIZE * PIXEL_SIZE]}
-                    stroke="#999999"
-                    strokeWidth={0.5}
+          {/* Checkerboard pattern for transparency */}
+          {pixels.map((row, y) =>
+            row.map((color, x) => {
+              if (color === TRANSPARENT) {
+                const isLight = (x + y) % 2 === 0;
+                return (
+                  <Rect
+                    key={`checker-${x}-${y}`}
+                    x={x * PIXEL_SIZE}
+                    y={y * PIXEL_SIZE}
+                    width={PIXEL_SIZE}
+                    height={PIXEL_SIZE}
+                    fill={isLight ? '#ffffff' : '#e8e8e8'}
                   />
-                ))}
-                {Array.from({ length: CANVAS_SIZE + 1 }).map((_, i) => (
-                  <Line
-                    key={`h-${i}`}
-                    points={[0, i * PIXEL_SIZE, CANVAS_SIZE * PIXEL_SIZE, i * PIXEL_SIZE]}
-                    stroke="#999999"
-                    strokeWidth={0.5}
-                  />
-                ))}
-              </>
-            )}
-          </Layer>
-        </Stage>
-      </div>
+                );
+              }
+              return null;
+            })
+          )}
+
+          {showGrid && (
+            <>
+              {Array.from({ length: CANVAS_SIZE + 1 }).map((_, i) => (
+                <Line
+                  key={`v-${i}`}
+                  points={[i * PIXEL_SIZE, 0, i * PIXEL_SIZE, CANVAS_SIZE * PIXEL_SIZE]}
+                  stroke="#d0d0d0"
+                  strokeWidth={0.3}
+                />
+              ))}
+              {Array.from({ length: CANVAS_SIZE + 1 }).map((_, i) => (
+                <Line
+                  key={`h-${i}`}
+                  points={[0, i * PIXEL_SIZE, CANVAS_SIZE * PIXEL_SIZE, i * PIXEL_SIZE]}
+                  stroke="#d0d0d0"
+                  strokeWidth={0.3}
+                />
+              ))}
+            </>
+          )}
+
+          {/* Selection rectangle */}
+          {currentTool === 'select' && selectionStart && selectionEnd && (() => {
+            const rect = getSelectionRect();
+            if (rect) {
+              return (
+                <Rect
+                  x={rect.x}
+                  y={rect.y}
+                  width={rect.width}
+                  height={rect.height}
+                  stroke="#0080ff"
+                  strokeWidth={2 / scale}
+                  dash={[8 / scale, 4 / scale]}
+                  listening={false}
+                />
+              );
+            }
+          })()}
+        </Layer>
+      </Stage>
     </div>
   );
 }
