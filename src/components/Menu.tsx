@@ -14,8 +14,7 @@ import {
   Redo,
   Upload,
   FilePlus,
-  X,
-  ChevronDown,
+  Minus,
 } from 'lucide-react';
 import type { Tool } from '../types';
 import { TRANSPARENT } from '../types';
@@ -89,7 +88,7 @@ export function Menu({
 }: MenuProps) {
   const [draggedIndex, setDraggedIndex] = React.useState<number | null>(null);
   const [hoveredIndex, setHoveredIndex] = React.useState<number | null>(null);
-  const [showActions, setShowActions] = React.useState(false);
+  const dropdownRef = React.useRef<HTMLDivElement | null>(null);
 
   const handleDragStart = (index: number) => {
     setDraggedIndex(index);
@@ -112,230 +111,232 @@ export function Menu({
 
   const brushPreviewSize = Math.max(6, brushSize * 2);
 
+  React.useEffect(() => {
+    if (!showMenu) return;
+    const handleClickOutside = (event: MouseEvent) => {
+      if (!dropdownRef.current) return;
+      if (!dropdownRef.current.contains(event.target as Node)) {
+        setShowMenu(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, [showMenu, setShowMenu]);
+
   return (
-    <div className="menu">
-      <button
-        type="button"
-        className="menu__toggle"
-        onClick={() => setShowMenu(!showMenu)}
-        aria-expanded={showMenu}
-      >
-        <MenuIcon size={14} />
-        <span>Menu</span>
-      </button>
-
-      {showMenu && (
-        <div className="menu__panel">
-          <section className="menu-section">
-            <div className="menu-section__header">
-              <span className="menu-section__label">Tools</span>
-            </div>
-            <div className="menu-tools">
-              {tools.map((tool) => (
-                <button
-                  key={tool}
-                  type="button"
-                  className={`menu-tool${currentTool === tool ? ' is-active' : ''}`}
-                  onClick={() => setCurrentTool(tool)}
-                >
-                  {toolIcons[tool]}
-                  <span className="menu-tool__label">{tool}</span>
-                </button>
-              ))}
-            </div>
-          </section>
-
-          <section className="menu-section">
-            <div className="menu-section__header">
-              <span className="menu-section__label">Color</span>
-            </div>
-            <input
-              className="menu-color-input"
-              type="color"
-              value={currentColor}
-              onChange={(event) => setCurrentColor(event.target.value)}
-              aria-label="Current color"
-            />
-          </section>
-
-          <section className="menu-section">
-            <div className="menu-section__header">
-              <span className="menu-section__label">Palette</span>
-            </div>
-            <div className="menu-palette">
-              {colorPalette.map((color, index) => {
-                const classes = ['menu-swatch'];
-                if (color === TRANSPARENT) classes.push('menu-swatch--transparent');
-                if (currentColor === color) classes.push('is-active');
-                if (draggedIndex === index) classes.push('is-dragging');
-
-                return (
-                  <div
-                    key={`${color}-${index}`}
-                    className={classes.join(' ')}
-                    draggable
-                    onDragStart={() => handleDragStart(index)}
-                    onDragOver={(event) => handleDragOver(event, index)}
-                    onDragEnd={handleDragEnd}
-                    onMouseEnter={() => setHoveredIndex(index)}
-                    onMouseLeave={() => setHoveredIndex(null)}
-                    style={{ backgroundColor: color === TRANSPARENT ? 'transparent' : color }}
-                    onClick={() => setCurrentColor(color)}
-                  >
-                    {hoveredIndex === index && currentColor === color && color !== TRANSPARENT && (
-                      <button
-                        type="button"
-                        className="menu-swatch__remove"
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          removeColorFromPalette(color);
-                        }}
-                        aria-label={`Remove ${color} from palette`}
-                      >
-                        <X size={8} />
-                      </button>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
+    <div className="menu menu--toolbar">
+      <div className="menu-toolbar">
+        <div className="menu-toolbar__cluster">
+          {tools.map((tool) => (
             <button
+              key={tool}
               type="button"
-              className="menu-button menu-button--subtle"
-              onClick={addColorToPalette}
+              className={`menu-tool${currentTool === tool ? ' is-active' : ''}`}
+              onClick={() => setCurrentTool(tool)}
+              title={tool}
             >
-              <Plus size={12} />
-              <span>Add Color</span>
+              {toolIcons[tool]}
             </button>
-          </section>
-
-          <section className="menu-section">
-            <div className="menu-section__header">
-              <span className="menu-section__label">Brush Size</span>
-              <div
-                className="menu-brush-preview"
-                style={{
-                  width: `${brushPreviewSize}px`,
-                  height: `${brushPreviewSize}px`,
-                  borderRadius: brushSize === 1 ? '2px' : '999px',
-                }}
-              />
-            </div>
-            <input
-              className="menu-slider"
-              type="range"
-              min="1"
-              max="10"
-              value={brushSize}
-              onChange={(event) => setBrushSize(Number(event.target.value))}
-            />
-          </section>
-
-          <label className="menu-checkbox">
-            <input
-              type="checkbox"
-              checked={showGrid}
-              onChange={(event) => setShowGrid(event.target.checked)}
-            />
-            <Grid3x3 size={14} />
-            <span>Show Grid</span>
-          </label>
-
-          <section className="menu-section">
-            <div className="menu-button-group">
-              <button
-                type="button"
-                className="menu-button"
-                onClick={undo}
-                disabled={!canUndo}
-              >
-                <Undo size={14} />
-                <span>Undo</span>
-              </button>
-              <button
-                type="button"
-                className="menu-button"
-                onClick={redo}
-                disabled={!canRedo}
-              >
-                <Redo size={14} />
-                <span>Redo</span>
-              </button>
-            </div>
-          </section>
-
-          <section className="menu-section">
-            <button
-              type="button"
-              className="menu-submenu__toggle"
-              onClick={() => setShowActions(!showActions)}
-              aria-expanded={showActions}
-              aria-controls="menu-actions-panel"
-            >
-              <span>Actions</span>
-              <ChevronDown
-                size={14}
-                style={{
-                  transform: showActions ? 'rotate(180deg)' : 'rotate(0deg)',
-                  transition: 'transform 0.15s ease',
-                }}
-              />
-            </button>
-            {showActions && (
-              <div className="menu-submenu" id="menu-actions-panel">
-                <div className="menu-submenu__group">
-                  <button
-                    type="button"
-                    className="menu-button"
-                    onClick={copySelection}
-                    disabled={!selectionStart || !selectionEnd}
-                  >
-                    <Copy size={14} />
-                    <span>Copy (⌘C)</span>
-                  </button>
-                  <button
-                    type="button"
-                    className="menu-button"
-                    onClick={pasteSelection}
-                    disabled={!clipboard}
-                  >
-                    <ClipboardPaste size={14} />
-                    <span>Paste (⌘V)</span>
-                  </button>
-                </div>
-                <div className="menu-submenu__group">
-                  <button
-                    type="button"
-                    className="menu-button menu-button--ghost"
-                    onClick={newCanvas}
-                  >
-                    <FilePlus size={14} />
-                    <span>New Canvas</span>
-                  </button>
-                  <div className="menu-button-group">
-                    <button
-                      type="button"
-                      className="menu-button"
-                      onClick={loadPNG}
-                    >
-                      <Upload size={14} />
-                      <span>Load</span>
-                    </button>
-                    <button
-                      type="button"
-                      className="menu-button menu-button--primary"
-                      onClick={savePNG}
-                    >
-                      <Save size={14} />
-                      <span>Save</span>
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
-          </section>
+          ))}
         </div>
-      )}
+
+        <span className="menu-divider" />
+
+        <div className="menu-toolbar__cluster menu-toolbar__cluster--color">
+          <input
+            className="menu-color-input"
+            type="color"
+            value={currentColor}
+            onChange={(event) => setCurrentColor(event.target.value)}
+            aria-label="Current color"
+          />
+          <button
+            type="button"
+            className="menu-add-swatch"
+            onClick={addColorToPalette}
+            title="Add current color"
+          >
+            <Plus size={12} />
+          </button>
+        </div>
+
+        <div className="menu-toolbar__cluster menu-toolbar__cluster--palette">
+          <div className="menu-swatch-strip">
+            {colorPalette.map((color, index) => {
+              const classes = ['menu-swatch'];
+              if (color === TRANSPARENT) classes.push('menu-swatch--transparent');
+              if (currentColor === color) classes.push('is-active');
+              if (draggedIndex === index) classes.push('is-dragging');
+
+              return (
+                <div
+                  key={`${color}-${index}`}
+                  className={classes.join(' ')}
+                  draggable
+                  onDragStart={() => handleDragStart(index)}
+                  onDragOver={(event) => handleDragOver(event, index)}
+                  onDragEnd={handleDragEnd}
+                  onMouseEnter={() => setHoveredIndex(index)}
+                  onMouseLeave={() => setHoveredIndex(null)}
+                  style={{ backgroundColor: color === TRANSPARENT ? 'transparent' : color }}
+                  onClick={() => setCurrentColor(color)}
+                >
+                  {hoveredIndex === index && currentColor === color && color !== TRANSPARENT && (
+                    <button
+                      type="button"
+                      className="menu-swatch__remove"
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        removeColorFromPalette(color);
+                      }}
+                      aria-label={`Remove ${color} from palette`}
+                    >
+                      <Minus size={8} />
+                    </button>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </div>
+
+        <span className="menu-divider" />
+
+        <div className="menu-toolbar__cluster menu-toolbar__cluster--brush">
+          <div
+            className="menu-brush-preview"
+            style={{
+              width: `${brushPreviewSize}px`,
+              height: `${brushPreviewSize}px`,
+              borderRadius: brushSize === 1 ? '2px' : '999px',
+            }}
+          />
+          <input
+            className="menu-slider"
+            type="range"
+            min="1"
+            max="10"
+            value={brushSize}
+            onChange={(event) => setBrushSize(Number(event.target.value))}
+            aria-label="Brush size"
+          />
+        </div>
+
+        <div className="menu-toolbar__cluster">
+          <button
+            type="button"
+            className="menu-icon-button"
+            onClick={undo}
+            disabled={!canUndo}
+            title="Undo"
+          >
+            <Undo size={14} />
+          </button>
+          <button
+            type="button"
+            className="menu-icon-button"
+            onClick={redo}
+            disabled={!canRedo}
+            title="Redo"
+          >
+            <Redo size={14} />
+          </button>
+        </div>
+
+        <div className="menu-dropdown-wrapper" ref={dropdownRef}>
+          <button
+            type="button"
+            className={`menu-hamburger${showMenu ? ' is-active' : ''}`}
+            onClick={() => setShowMenu(!showMenu)}
+            aria-expanded={showMenu}
+            aria-controls="menu-actions"
+            title="More actions"
+          >
+            <MenuIcon size={15} />
+          </button>
+
+          {showMenu && (
+            <div className="menu-dropdown" id="menu-actions">
+              <div className="menu-dropdown__group">
+                <button
+                  type="button"
+                  className="menu-button"
+                  onClick={() => {
+                    setShowGrid(!showGrid);
+                    setShowMenu(false);
+                  }}
+                  aria-pressed={showGrid}
+                >
+                  <Grid3x3 size={14} />
+                  <span>{showGrid ? 'Hide Grid' : 'Show Grid'}</span>
+                </button>
+                <button
+                  type="button"
+                  className="menu-button"
+                  onClick={() => {
+                    copySelection();
+                    setShowMenu(false);
+                  }}
+                  disabled={!selectionStart || !selectionEnd}
+                >
+                  <Copy size={14} />
+                  <span>Copy (⌘C)</span>
+                </button>
+                <button
+                  type="button"
+                  className="menu-button"
+                  onClick={() => {
+                    pasteSelection();
+                    setShowMenu(false);
+                  }}
+                  disabled={!clipboard}
+                >
+                  <ClipboardPaste size={14} />
+                  <span>Paste (⌘V)</span>
+                </button>
+              </div>
+              <div className="menu-dropdown__divider" />
+              <div className="menu-dropdown__group">
+                <button
+                  type="button"
+                  className="menu-button menu-button--ghost"
+                  onClick={() => {
+                    newCanvas();
+                    setShowMenu(false);
+                  }}
+                >
+                  <FilePlus size={14} />
+                  <span>New Canvas</span>
+                </button>
+                <button
+                  type="button"
+                  className="menu-button"
+                  onClick={() => {
+                    loadPNG();
+                    setShowMenu(false);
+                  }}
+                >
+                  <Upload size={14} />
+                  <span>Load</span>
+                </button>
+                <button
+                  type="button"
+                  className="menu-button menu-button--primary"
+                  onClick={() => {
+                    savePNG();
+                    setShowMenu(false);
+                  }}
+                >
+                  <Save size={14} />
+                  <span>Save</span>
+                </button>
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
     </div>
   );
 }
