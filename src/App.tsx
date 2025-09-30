@@ -1,5 +1,5 @@
 import { useRef, useState, useEffect, useCallback } from 'react';
-import { Stage, Layer, Rect, Line } from 'react-konva';
+import { Stage, Layer, Rect, Line, Image as KonvaImage } from 'react-konva';
 import Konva from 'konva';
 import type { Tool } from './types';
 import { CANVAS_SIZE, PIXEL_SIZE, TRANSPARENT } from './types';
@@ -454,6 +454,56 @@ function App() {
     };
   };
 
+  // Generate canvas image from pixels
+  const [canvasImage, setCanvasImage] = useState<HTMLImageElement | null>(null);
+
+  useEffect(() => {
+    const width = pixels[0]?.length || 0;
+    const height = pixels.length || 0;
+    if (width === 0 || height === 0) {
+      setCanvasImage(null);
+      return;
+    }
+
+    const canvas = document.createElement('canvas');
+    canvas.width = width * PIXEL_SIZE;
+    canvas.height = height * PIXEL_SIZE;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    // Disable image smoothing for crisp pixels
+    ctx.imageSmoothingEnabled = false;
+
+    // Draw checkerboard pattern
+    for (let y = 0; y < height; y++) {
+      for (let x = 0; x < width; x++) {
+        const isLight = (x + y) % 2 === 0;
+        ctx.fillStyle = isLight ? '#ffffff' : '#e8e8e8';
+        ctx.fillRect(x * PIXEL_SIZE, y * PIXEL_SIZE, PIXEL_SIZE, PIXEL_SIZE);
+      }
+    }
+
+    // Draw pixels
+    pixels.forEach((row, y) => {
+      row.forEach((color, x) => {
+        if (color !== TRANSPARENT) {
+          ctx.fillStyle = color;
+          ctx.fillRect(x * PIXEL_SIZE, y * PIXEL_SIZE, PIXEL_SIZE, PIXEL_SIZE);
+          // Add subtle border
+          ctx.strokeStyle = color;
+          ctx.lineWidth = 0.5;
+          ctx.strokeRect(x * PIXEL_SIZE, y * PIXEL_SIZE, PIXEL_SIZE, PIXEL_SIZE);
+        }
+      });
+    });
+
+    const image = document.createElement('img');
+    image.onload = () => {
+      setCanvasImage(image);
+    };
+    image.src = canvas.toDataURL();
+  }, [pixels]);
+
   return (
     <div style={{
       width: '100vw',
@@ -530,61 +580,38 @@ function App() {
           scaleX={scale}
           scaleY={scale}
         >
-          {pixels.map((row, y) =>
-            row.map((color, x) => (
-              <Rect
-                key={`${x}-${y}`}
-                x={x * PIXEL_SIZE}
-                y={y * PIXEL_SIZE}
-                width={PIXEL_SIZE}
-                height={PIXEL_SIZE}
-                fill={color === TRANSPARENT ? undefined : color}
-                stroke={color === TRANSPARENT ? undefined : color}
-                strokeWidth={0.5}
-              />
-            ))
+          {canvasImage && (
+            <KonvaImage
+              image={canvasImage}
+              listening={false}
+              imageSmoothingEnabled={false}
+            />
           )}
 
-          {/* Checkerboard pattern for transparency */}
-          {pixels.map((row, y) =>
-            row.map((color, x) => {
-              if (color === TRANSPARENT) {
-                const isLight = (x + y) % 2 === 0;
-                return (
-                  <Rect
-                    key={`checker-${x}-${y}`}
-                    x={x * PIXEL_SIZE}
-                    y={y * PIXEL_SIZE}
-                    width={PIXEL_SIZE}
-                    height={PIXEL_SIZE}
-                    fill={isLight ? '#ffffff' : '#e8e8e8'}
+          {showGrid && (() => {
+            const width = pixels[0]?.length || 0;
+            const height = pixels.length || 0;
+            return (
+              <>
+                {Array.from({ length: width + 1 }).map((_, i) => (
+                  <Line
+                    key={`v-${i}`}
+                    points={[i * PIXEL_SIZE, 0, i * PIXEL_SIZE, height * PIXEL_SIZE]}
+                    stroke="#d0d0d0"
+                    strokeWidth={0.3}
                   />
-                );
-              }
-              return null;
-            })
-          )}
-
-          {showGrid && (
-            <>
-              {Array.from({ length: CANVAS_SIZE + 1 }).map((_, i) => (
-                <Line
-                  key={`v-${i}`}
-                  points={[i * PIXEL_SIZE, 0, i * PIXEL_SIZE, CANVAS_SIZE * PIXEL_SIZE]}
-                  stroke="#d0d0d0"
-                  strokeWidth={0.3}
-                />
-              ))}
-              {Array.from({ length: CANVAS_SIZE + 1 }).map((_, i) => (
-                <Line
-                  key={`h-${i}`}
-                  points={[0, i * PIXEL_SIZE, CANVAS_SIZE * PIXEL_SIZE, i * PIXEL_SIZE]}
-                  stroke="#d0d0d0"
-                  strokeWidth={0.3}
-                />
-              ))}
-            </>
-          )}
+                ))}
+                {Array.from({ length: height + 1 }).map((_, i) => (
+                  <Line
+                    key={`h-${i}`}
+                    points={[0, i * PIXEL_SIZE, width * PIXEL_SIZE, i * PIXEL_SIZE]}
+                    stroke="#d0d0d0"
+                    strokeWidth={0.3}
+                  />
+                ))}
+              </>
+            );
+          })()}
 
           {/* Selection rectangle */}
           {currentTool === 'select' && selectionStart && selectionEnd && (() => {
